@@ -11,7 +11,7 @@ def main() -> None:
 
     meow = meowmx.Client()
     meow.setup_tables()
-    
+
     stream_id = meowmx.StreamId(category="cats", name=cat_id)
 
     while True:
@@ -31,7 +31,7 @@ def main() -> None:
         else:
             random.randbytes(8)
             s = str(base64.urlsafe_b64encode(random.randbytes(8)))
-            new_event = demolib.CatUpdated(new_random_value=s)    
+            new_event = demolib.CatUpdated(new_random_value=s)
 
         meow.publish(new_event, stream_id=stream_id, expected_version=expected_version)
 

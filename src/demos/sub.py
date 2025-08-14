@@ -1,7 +1,8 @@
-import sys
-
 import meowmx
-import demolib # noqa
+
+# We have to import the event or else it won't be known at runtime:
+import demolib  # noqa
+
 
 def main() -> None:
     meow = meowmx.Client()

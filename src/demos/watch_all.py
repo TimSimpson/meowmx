@@ -1,7 +1,4 @@
-import sys
-
 import meowmx
-import demolib  # noqa
 
 
 def main() -> None:
