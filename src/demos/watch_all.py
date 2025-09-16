@@ -5,7 +5,7 @@ def main() -> None:
     meow = meowmx.Client()
     meow.setup_tables()
 
-    for event in meow.sub():
+    for event in meow.sub(batch_size=200):
         if not event:
             print("Waiting...")
         else:

@@ -27,13 +27,11 @@ def main() -> None:
             expected_version = event.version
 
         if expected_version == 0:
-            new_event: meowmx.Event = demolib.CatCreated(
-                cat_name=cat_id
-            )
+            new_event: meowmx.Event = demolib.CatCreated(cat_name=cat_id)
         else:
             random.randbytes(8)
             s = str(base64.urlsafe_b64encode(random.randbytes(8)))
-            new_event = demolib.CatUpdated(new_random_value=s, version=int(expected_version))
+            new_event = demolib.CatUpdated(new_random_value=s)
 
         meow.publish(new_event, stream_id=stream_id, expected_version=expected_version)
 

@@ -7,3 +7,4 @@ class CatCreated(meowmx.Event):
 
 class CatUpdated(meowmx.Event):
     new_random_value: str
+    version: int

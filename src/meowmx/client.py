@@ -9,7 +9,7 @@ import sqlalchemy.exc
 from event_sourcery.event_store.exceptions import ConcurrentStreamWriteError
 
 from . import registry
-
+from . import workers
 
 class Base(DeclarativeBase):
     pass
@@ -26,7 +26,9 @@ class Client:
 
     def setup_tables(self) -> None:
         configure_models(Base)  # Base is your declarative base class
+        workers.configure_models(self._engine)
         Base.metadata.create_all(self._engine)
+        
 
     def load(self, *args, **kwargs) -> t.Any:
         with self._sessionmaker() as session:
