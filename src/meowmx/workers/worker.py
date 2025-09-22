@@ -1,15 +1,15 @@
-from dataclasses import dataclass
-import typing as t
+# from dataclasses import dataclass
+# import typing as t
 
 
-class Worker:
+# # class Worker:
 
-    pass
+# #     pass
 
 
-@dataclass
+# # @dataclass
 
-def _load_worker(worker: str) -> Worker:
+# # def _load_worker(worker: str) -> Worker:
 
-def create_worker(name: str, category: str) -> Worker:
-    pass
+# # def create_worker(name: str, category: str) -> Worker:
+# #     pass

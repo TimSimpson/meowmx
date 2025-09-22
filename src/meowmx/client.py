@@ -1,76 +1,131 @@
+import time
 import typing as t
-from event_sourcery.event_store import Event, Recorded
-from event_sourcery_sqlalchemy import configure_models
-from event_sourcery_sqlalchemy import SQLAlchemyBackendFactory
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import sessionmaker
-import sqlalchemy.exc
-from event_sourcery.event_store.exceptions import ConcurrentStreamWriteError
 
-from . import registry
-from . import workers
+from .esp import esp
+from .backoff import BackoffCalc
+
 
 class Base(DeclarativeBase):
     pass
 
 
+class ExpectedVersionFailure(RuntimeError):
+    pass
+
+
+DEFAULT_LIMIT = 512
+
+EventHandler = esp.EventHandler
+
+
 class Client:
-    def __init__(self) -> None:
+    def __init__(self, url: str) -> None:
         self._engine = create_engine(
             "postgresql+psycopg://eventsourcing:eventsourcing@localhost:5443/eventsourcing?sslmode=disable",
         )
         self._sessionmaker = sessionmaker(
             autocommit=False, autoflush=False, bind=self._engine
         )
+        self._esp = esp.Esp(self._engine, self._sessionmaker)
 
     def setup_tables(self) -> None:
-        configure_models(Base)  # Base is your declarative base class
-        workers.configure_models(self._engine)
-        Base.metadata.create_all(self._engine)
-        
+        self._esp.setup_tables()
 
-    def load(self, *args, **kwargs) -> t.Any:
+    def load_all(
+        self,
+        from_tx_id: t.Optional[int],
+        to_tx_id: t.Optional[int],
+        limit: t.Optional[int],
+    ) -> t.List[esp.RecordedEvent]:
+        limit = limit or DEFAULT_LIMIT
         with self._sessionmaker() as session:
-            factory = SQLAlchemyBackendFactory(session)
-            backend = factory.build()
-            return backend.event_store.load_stream(*args, **kwargs)
+            return self._esp.read_all_events(
+                session,
+                limit=limit,
+                from_tx_id=from_tx_id,
+                to_tx_id=to_tx_id,
+            )
 
-    def publish(self, *args, **kwargs) -> t.Any:
+    def load(
+        self,
+        aggregate_type: str,
+        aggregate_id: str,
+        from_version: t.Optional[int] = None,
+        to_version: t.Optional[int] = None,
+        limit: t.Optional[int] = None,
+        reverse: bool = False,
+    ) -> t.List[esp.RecordedEvent]:
+        limit = limit or DEFAULT_LIMIT
+        if from_version is None and not reverse:
+            from_version = 0
+
         with self._sessionmaker() as session:
-            factory = SQLAlchemyBackendFactory(session)
-            backend = factory.build()
+            return self._esp.read_events_by_aggregate_id(
+                session,
+                aggregate_id=aggregate_id,
+                limit=limit,
+                from_version=from_version,
+                to_version=to_version,
+                reverse=reverse,
+            )
+
+    def save_events(
+        self, aggregate_type: str, aggregate_id: str, events: t.List[esp.NewEvent]
+    ) -> t.List[esp.RecordedEvent]:
+        if len(events) == 0:
+            return []
+        new_version = events[0].version
+        expected_version = new_version - 1
+        for index in range(1, len(events)):
+            new_version += 1
+            if events[index].version != new_version:
+                raise ValueError(
+                    "event versions do not increase; no gaps should be found in the version of each new event"
+                )
+
+        with self._sessionmaker() as session:
             try:
-                backend.event_store.append(*args, **kwargs)
+                self._esp.create_aggregate_if_absent(
+                    session, aggregate_type, aggregate_id
+                )
+                if not self._esp.check_and_update_aggregate_version(
+                    session, aggregate_id, expected_version, new_version
+                ):
+                    raise ExpectedVersionFailure(
+                        f"database did not match expected_version of {expected_version}"
+                    )
+                results = []
+                for event in events:
+                    recorded_event = self._esp.append_event(
+                        session, event, aggregate_type
+                    )
+                    results.append(recorded_event)
                 session.commit()
-            except sqlalchemy.exc.IntegrityError as ie:
-                # If a brand new stream is written from two different processes,
-                # it will sometimes throw a SQL Alchemy exception instead of
-                # the trusty ConcurrentStreamWriteError.
-                if "duplicate key value violates" in str(ie):
-                    raise ConcurrentStreamWriteError()
+                return results
+            except:
+                session.rollback()
+                raise
 
     def sub(
         self,
-        category: t.Optional[str] = None,
-        start_from: int = 0,
-        types: t.Optional[t.List[t.Type[Event]]] = None,
+        subscription_name: str,
+        aggregate_type: str,
+        handler: EventHandler,
         batch_size: int = 10,
         timelimit: int = 1,
-    ) -> t.Iterator[Recorded]:
-        with self._sessionmaker() as session:
-            factory = SQLAlchemyBackendFactory(session)
-            reg = registry.LenientEventRegistry()
-            factory.with_event_registry(reg)
-            backend = factory.build()
-            filter_phase = backend.subscriber.start_from(start_from)
-            if types:
-                build_phase = filter_phase.to_events(types)
-            elif category:
-                build_phase = filter_phase.to_category(category)
+    ) -> None:
+        backoff = BackoffCalc(1, timelimit)
+        while True:
+            processed = self._esp.handle_subscription_events(
+                subscription_name=subscription_name,
+                aggregate_type=aggregate_type,
+                batch_size=batch_size,
+                handler=handler,
+            )
+            if processed == 0:
+                time.sleep(backoff.failure())
             else:
-                build_phase = filter_phase
-            iterator = build_phase.build_batch(size=batch_size, timelimit=timelimit)
-            for batch in iterator:
-                for event in batch:
-                    yield event
+                backoff.success()

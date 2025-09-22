@@ -8,6 +8,10 @@ check:
     uv run -- mypy ./
     uv run -- ruff format
 
+# runs an example
+examples *args:
+    just --justfile '{{ justfile_directory() }}/examples/justfile' {{args}}
+
 run:
     uv run -- python main.py
 

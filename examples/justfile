@@ -1,0 +1,17 @@
+_default:
+    @just --list
+
+# a demo which writes fake aggregates
+aggregate-writer *args:
+    uv run -- python '{{ justfile_directory() }}/aggregate-writer.py' {{ args }}
+
+# reads all the events. A good way to see what's going on.
+read-events *args:
+    uv run -- python '{{ justfile_directory() }}/read-events.py' {{ args }}
+
+# saves events. A good way to see what's going on.
+save-event aggregate-type aggregate-id event-type version *data:    
+    uv run -- python '{{ justfile_directory() }}/save-event.py' --aggregate-type '{{aggregate-type}}' --aggregate-id '{{aggregate-id}}' --event-type '{{event-type}}' --data '{{data}}' --version '{{version}}'
+
+worker *args:
+    uv run -- python '{{ justfile_directory() }}/worker.py' {{ args }}

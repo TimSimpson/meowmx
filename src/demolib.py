@@ -1,6 +1,9 @@
 import meowmx
 
 
+DEMO_PG_URL = "postgresql+psycopg://eventsourcing:eventsourcing@localhost:5443/eventsourcing?sslmode=disable"
+
+
 class CatCreated(meowmx.Event):
     cat_name: str
 
