@@ -1,6 +1,7 @@
 import random
 import threading
 import time
+import traceback
 import typing as t
 import uuid
 
@@ -76,6 +77,9 @@ class AggregateWriter:
                 version=version,
             )
         ]
+        print(
+            f" -> writing {self._aggregate_type} - {aggregate_id} - {events[0].version}..."
+        )
         recorded_events = meow.save_events(self._aggregate_type, aggregate_id, events)
         self._events.append(recorded_events[0])
         self._aggregate_versions[aggregate_id] += 1
@@ -128,7 +132,7 @@ class Worker:
         )
 
 
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(10)
 def test_subscriptions(meow: meowmx.Client) -> None:
     rname = _generate_slug()
     aggregate_type = f"meowmx-st-{rname}"
@@ -152,14 +156,34 @@ def test_subscriptions(meow: meowmx.Client) -> None:
 
     # start the workers, each in a different thread
 
+    errors_in_thread = None
+
     def worker1() -> None:
-        worker_orders.start_subscription(meow, stop_signal)
+        try:
+            worker_orders.start_subscription(meow, stop_signal)
+        except Exception as e:
+            print(f"ERROR IN THREAD: {e}")
+            nonlocal errors_in_thread
+            errors_in_thread = True
+            traceback.print_exc()
 
     def worker2() -> None:
-        worker_shipped.start_subscription(meow, stop_signal)
+        try:
+            worker_shipped.start_subscription(meow, stop_signal)
+        except Exception as e:
+            print(f"ERROR IN THREAD: {e}")
+            nonlocal errors_in_thread
+            errors_in_thread = True
+            traceback.print_exc()
 
     def worker3() -> None:
-        worker_tracker.start_subscription(meow, stop_signal)
+        try:
+            worker_tracker.start_subscription(meow, stop_signal)
+        except Exception as e:
+            print(f"ERROR IN THREAD: {e}")
+            nonlocal errors_in_thread
+            errors_in_thread = True
+            traceback.print_exc()
 
     t1 = threading.Thread(target=worker1)
     t1.start()
@@ -170,19 +194,26 @@ def test_subscriptions(meow: meowmx.Client) -> None:
 
     # Now write some number of events
 
-    event_count = 400
-    for i in range(event_count):
-        writer.write_event(meow)
+    try:
+        event_count = 400
+        for i in range(event_count):
+            writer.write_event(meow)
+    except Exception as e:
+        print(f"ERROR IN MAIN THREAD: {e}")
+        traceback.print_exc()
+        errors_in_thread = True
 
     # wait for the threads to be done processing them. This will hang
     # if there's a bug!
-
-    while (
-        worker_orders.seen_event_count < event_count
-        or worker_shipped.seen_event_count < event_count
-        or worker_tracker.seen_event_count < event_count
-    ):
-        time.sleep(1)
+    if not errors_in_thread:
+        while (
+            worker_orders.seen_event_count < event_count
+            or worker_shipped.seen_event_count < event_count
+            or worker_tracker.seen_event_count < event_count
+        ):
+            if errors_in_thread:
+                break
+            time.sleep(1)
 
     # Signal the worker threads to stop
     stop_signal.set()
@@ -190,6 +221,8 @@ def test_subscriptions(meow: meowmx.Client) -> None:
     t1.join()
     t2.join()
     t3.join()
+
+    assert not errors_in_thread
 
     if True:
         for event in writer.written_events:

@@ -23,7 +23,16 @@ def sql_url_cmd_opt(request: t.Any) -> str:
 @pytest.fixture
 def engine(sql_type_cmd_opt: str, sql_url_cmd_opt: str) -> meowmx.Engine:
     """Creates the SQL client based on the command line option --sql-type."""
-    return sqlalchemy.create_engine(sql_url_cmd_opt)
+    if sql_url_cmd_opt.endswith(":memory:"):
+        # tell SqlAlchemy to give the same connection to each thread, which
+        # is required for the subscription / worker test.
+        return sqlalchemy.create_engine(
+            sql_url_cmd_opt,
+            poolclass=sqlalchemy.pool.StaticPool,
+            connect_args={"check_same_thread": False},
+        )
+    else:
+        return sqlalchemy.create_engine(sql_url_cmd_opt)
 
 
 @pytest.fixture
@@ -35,12 +44,16 @@ _setup_was_run = False
 
 
 @pytest.fixture
-def meow(engine: meowmx.Engine, session_maker: meowmx.SessionMaker) -> meowmx.Client:
+def meow(
+    sql_url_cmd_opt: str, engine: meowmx.Engine, session_maker: meowmx.SessionMaker
+) -> meowmx.Client:
     client = meowmx.Client(engine=engine, session_maker=session_maker)
     global _setup_was_run
     if not _setup_was_run:
         client.setup_tables()
-        _setup_was_run = True
+        # for in memory sqlite we need to create it for every test
+        if not sql_url_cmd_opt.endswith(":memory:"):
+            _setup_was_run = True
     return client
 
     # "postgresql+psycopg://eventsourcing:eventsourcing@localhost:5443/eventsourcing?sslmode=disable"

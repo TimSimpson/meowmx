@@ -2,17 +2,14 @@ import threading
 import time
 import typing as t
 
-from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.orm import sessionmaker
-
 from .esp import esp
 from .backoff import BackoffCalc
 from . import common
-from .sqlalchemy.client import Client as SqlAlchemyClient
+from . import sqlalchemy
 
 
-class Base(DeclarativeBase):
-    pass
+# class Base(DeclarativeBase):
+#     pass
 
 
 class ExpectedVersionFailure(RuntimeError):
@@ -28,21 +25,18 @@ class Client:
         engine: common.Engine,
         session_maker: t.Optional[common.SessionMaker] = None,
     ) -> None:
-        # self._engine = create_engine(
-        #     "postgresql+psycopg://eventsourcing:eventsourcing@localhost:5443/eventsourcing?sslmode=disable",
-        # )
         self._engine = engine
         if session_maker is not None:
             self._session_maker = session_maker
         else:
-            self._session_maker = sessionmaker(
-                autocommit=False, autoflush=False, bind=self._engine
-            )
+            self._session_maker = sqlalchemy.create_session_maker(engine)
         self._esp: common.Client
         if self._engine.dialect.name == "postgresql":
             self._esp = esp.Esp()
         else:
-            self._esp = SqlAlchemyClient()
+            self._esp = sqlalchemy.Client()
+            if sqlalchemy.engine_is_in_memory_db(self._engine):
+                self._esp = sqlalchemy.MutexLockedClient(self._esp)
 
     def setup_tables(self) -> None:
         self._esp.setup_tables(self._engine)
@@ -62,52 +56,53 @@ class Client:
         If the handler raises an exception, then releases the lock on the event.
         """
         with self._session_maker() as session:
-            self._esp.create_subscription_if_absent(session, subscription_name)
-            checkpoint = self._esp.read_checkpoint_and_lock_subscription(
-                session, subscription_name
-            )
-            if not checkpoint:
-                # this can happen if we can't lock a record
-                session.commit()
-                return 0
-            else:
-                events = self._esp.read_events_after_checkpoint(
-                    session,
-                    aggregate_type,
-                    checkpoint.last_tx_id,
-                    checkpoint.last_event_id,
+            with session.begin():
+                self._esp.create_subscription_if_absent(session, subscription_name)
+                checkpoint = self._esp.read_checkpoint_and_lock_subscription(
+                    session, subscription_name
                 )
+                if not checkpoint:
+                    # this can happen if we can't lock a record
+                    session.commit()
+                    return 0
+                else:
+                    events = self._esp.read_events_after_checkpoint(
+                        session,
+                        aggregate_type,
+                        checkpoint.last_tx_id,
+                        checkpoint.last_event_id,
+                    )
 
-                updated_checkpoint = False
+                    updated_checkpoint = False
 
-                processed_count = 0
-                for event in events:
-                    if processed_count >= batch_size:
-                        break
-                    processed_count += 1
+                    processed_count = 0
+                    for event in events:
+                        if processed_count >= batch_size:
+                            break
+                        processed_count += 1
 
-                    with session.begin_nested() as nested_tx:
-                        try:
-                            handler(session, event)
-                        except Exception:
-                            nested_tx.rollback()
-                            # if we need to update the check point at all,
-                            # commit what we got, especially if this is being
-                            # a problematic event
-                            if updated_checkpoint:
-                                session.commit()
-                            raise
-                        # session2.commit()
-                        self._esp.update_event_subscription(
-                            session,
-                            subscription_name,
-                            event.tx_id,
-                            event.id,
-                        )
-                        updated_checkpoint = True
+                        with session.begin_nested() as nested_tx:
+                            try:
+                                handler(session, event)
+                            except Exception:
+                                nested_tx.rollback()
+                                # if we need to update the check point at all,
+                                # commit what we got, especially if this is being
+                                # a problematic event
+                                if updated_checkpoint:
+                                    session.commit()
+                                raise
+                            # session2.commit()
+                            self._esp.update_event_subscription(
+                                session,
+                                subscription_name,
+                                event.tx_id,
+                                event.id,
+                            )
+                            updated_checkpoint = True
 
-                session.commit()
-                return processed_count
+                    session.commit()
+                    return processed_count
 
     def load_all(
         self,
@@ -170,7 +165,7 @@ class Client:
                     session, aggregate_id, expected_version, new_version
                 ):
                     raise ExpectedVersionFailure(
-                        f"database did not match expected_version of {expected_version}"
+                        f"{aggregate_type} - {aggregate_id} did not match expected_version of {expected_version}"
                     )
                 results = []
                 for event in events:

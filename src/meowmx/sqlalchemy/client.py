@@ -6,10 +6,16 @@ from .. import common
 from . import tables
 
 
+def create_session_maker(engine: common.Engine) -> common.SessionMaker:
+    return sqlalchemy.orm.sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def engine_is_in_memory_db(engine: common.Engine) -> bool:
+    return engine.dialect.name == "sqlite" and engine.url.database in (None, ":memory:")
+
+
 class Client:
-    def __init__(
-        self,
-    ) -> None:
+    def __init__(self) -> None:
         pass
 
     def setup_tables(self, engine: common.Engine) -> None:
@@ -55,16 +61,17 @@ class Client:
         aggregate_id: str,  # UUID string – SQLAlchemy will coerce to UUID if the column type is UUID
     ) -> None:
         # start a nested session; if it fails, it's no biggie
-        with session.begin_nested():
-            stmt = sqlalchemy.insert(tables.EsAggregate).values(
-                id=aggregate_id,
-                version=-1,
-                aggregate_type=aggregate_type,
-            )
-            try:
-                session.execute(stmt)
-            except exc.IntegrityError:
-                pass
+        with session.begin():
+            with session.begin_nested():
+                stmt = sqlalchemy.insert(tables.EsAggregate).values(
+                    id=aggregate_id,
+                    version=-1,
+                    aggregate_type=aggregate_type,
+                )
+                try:
+                    session.execute(stmt)
+                except exc.IntegrityError:
+                    pass
 
     def create_subscription_if_absent(
         self, session: common.Session, subscription_name: str
