@@ -48,7 +48,7 @@ def main() -> None:
     args = parser.parse_args()
     args.percent_new = args.percent_new or 25
 
-    meow = meowmx.Client(demolib.DEMO_PG_URL)
+    meow = demolib.create_meowmx()
 
     aggregate_versions: t.Dict[str, int] = {}
     aggregate_ids: t.List = []

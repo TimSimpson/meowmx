@@ -3,7 +3,6 @@ import json
 import sys
 import time
 import demolib
-import meowmx
 from meowmx.backoff import BackoffCalc
 
 
@@ -47,7 +46,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    meow = meowmx.Client(demolib.DEMO_PG_URL)
+    meow = demolib.create_meowmx()
 
     if args.limit == 0:
         print("bad value for limit: 0", file=sys.stderr)

@@ -61,3 +61,10 @@ uv run -- demo/update-cat blanco  # update a stream in a screen. Run this twice 
 It will load a stream named "blanco", prompt you to hit enter, and then save a new event to the stream.
 
 To test atomic writes, start this in two terminals, then hit enter in one and then the other. It will fail in the second one since the version number for the stream will be old.
+
+
+## TODO
+
+[ ] don't force `version` on NewEvent, it's a headache
+[ ] Allow for XID on Event
+[ ] Allow for any string, if possible

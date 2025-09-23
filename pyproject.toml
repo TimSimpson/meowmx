@@ -24,3 +24,7 @@ build-backend = "hatchling.build"
 
 [tool.mypy]
 check_untyped_defs = true
+disallow_untyped_defs = true
+files = ["examples", "src", "tests"]
+warn_return_any = true
+warn_unused_configs = true

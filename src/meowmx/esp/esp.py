@@ -1,66 +1,42 @@
-from dataclasses import dataclass
 import json
 import textwrap
 import typing as t
 from sqlalchemy import Engine, text, bindparam, Integer, Text, String
 from . import migrations
-
-
-class PostgresExecuter(t.Protocol):
-    def exec(self, text: str, arguments: t.Mapping[str, t.Any]) -> None: ...
-
-
-@dataclass
-class NewEvent:
-    aggregate_id: str
-    event_type: str
-    json: t.Dict[str, t.Any]
-    version: int
-
-
-@dataclass
-class RecordedEvent:
-    aggregate_type: str
-    aggregate_id: str
-    id: int
-    event_type: str
-    json: t.Dict[str, t.Any]
-    tx_id: int
-    version: int
-
-
-@dataclass
-class SubCheckpoint:
-    last_tx_id: int
-    last_event_id: int
-
-
-Session: t.TypeAlias = t.Any
-
-EventHandler: t.TypeAlias = t.Callable[[Session, RecordedEvent], None]
+from .. import common
 
 
 class Esp:
-    def __init__(self, engine: Engine, sessionmaker: t.Any) -> None:
-        self._engine = engine
-        self._sessionmaker = sessionmaker
+    def __init__(self) -> None:
+        pass
 
-    def setup_tables(self) -> None:
-        with self._engine.connect() as conn:
-            conn.execute(text(migrations.MIGRATIONS))
+    def setup_tables(
+        self, engine: Engine, alternate_aggregate_id_type: t.Optional[str] = None
+    ) -> None:
+        aggregate_id_type = "UUID"
+        if alternate_aggregate_id_type:
+            aggregate_id_type = alternate_aggregate_id_type
+        with engine.connect() as conn:
+            formatted_text = migrations.MIGRATIONS.format(
+                AGGREGATE_ID_TYPE=aggregate_id_type
+            )
+            conn.execute(text(formatted_text))
             conn.commit()
 
     def append_event(
-        self, session: Session, event: NewEvent, assumed_aggregate_type: str
-    ) -> RecordedEvent:
+        self,
+        session: common.Session,
+        event: common.NewEvent,
+        assumed_aggregate_type: str,
+    ) -> common.RecordedEvent:
         """Inserts an event.
 
         The aggregate type is assumed to be known by the caller.
         """
         query = textwrap.dedent("""
-        INSERT INTO ES_EVENT (TRANSACTION_ID, AGGREGATE_ID, VERSION, EVENT_TYPE, JSON_DATA)
+        INSERT INTO ES_EVENT (transaction_id, aggregate_id, version, event_type, json_data)
             VALUES(pg_current_xact_id(), :aggregate_id, :version, :event_type, CAST(:json_obj AS JSON))
-            RETURNING ID, TRANSACTION_ID::text, EVENT_TYPE, JSON_DATA
+            RETURNING id, transaction_id, event_type, json_data
         """)
         row = session.execute(
             text(query),
@@ -71,18 +47,20 @@ class Esp:
                 "json_obj": json.dumps(event.json),
             },
         ).fetchone()
-        return RecordedEvent(
+        if row is None:
+            raise RuntimeError("error appending")
+        return common.RecordedEvent(
             aggregate_id=event.aggregate_id,
             aggregate_type=assumed_aggregate_type,
             event_type=event.event_type,
             id=row[0],
             json=event.json,
-            tx_id=row[1],
+            tx_id=int(row[1]),
             version=event.version,
         )
 
     def create_aggregate_if_absent(
-        self, session: Session, aggregate_type: str, aggregate_id: str
+        self, session: common.Session, aggregate_type: str, aggregate_id: str
     ) -> None:
         """Inserts the aggregate type into the table"""
         query = textwrap.dedent("""
@@ -96,7 +74,7 @@ class Esp:
         )
 
     def create_subscription_if_absent(
-        self, session: Session, subscription_name: str
+        self, session: common.Session, subscription_name: str
     ) -> None:
         query = textwrap.dedent(
             """
@@ -120,7 +98,7 @@ class Esp:
 
     def check_and_update_aggregate_version(
         self,
-        session: Session,
+        session: common.Session,
         aggregate_id: str,
         expected_version: int,
         new_version: int,
@@ -141,73 +119,11 @@ class Esp:
                 "expected_version": expected_version,
             },
         )
-        return result.rowcount == 1
-
-    def handle_subscription_events(
-        self,
-        subscription_name: str,
-        aggregate_type: str,
-        batch_size: int,
-        handler: EventHandler,
-    ) -> int:
-        """Handles the next event in the subscription.
-
-        Returns the number of events handled, or zero if there was no event.
-        If there is an event, calls the handler. On success updates the
-        checkpoint.
-        If the handler raises an exception, then releases the lock on the event.
-        """
-        with self._sessionmaker() as session:
-            self.create_subscription_if_absent(session, subscription_name)
-            checkpoint = self.read_checkpoint_and_lock_subscription(
-                session, subscription_name
-            )
-            if not checkpoint:
-                # this can happen if we can't lock a record
-                session.commit()
-                return 0
-            else:
-                events = self.read_events_after_checkpoint(
-                    session,
-                    aggregate_type,
-                    checkpoint.last_tx_id,
-                    checkpoint.last_event_id,
-                )
-
-                updated_checkpoint = False
-
-                processed_count = 0
-                for event in events:
-                    if processed_count >= batch_size:
-                        break
-                    processed_count += 1
-
-                    with session.begin_nested() as session2:
-                        try:
-                            handler(session2, event)
-                        except Exception:
-                            session2.rollback()
-                            # if we need to update the check point at all,
-                            # commit what we got, especially if this is being
-                            # a problematic event
-                            if updated_checkpoint:
-                                session.commit()
-                            raise
-                        # session2.commit()
-                        self.update_event_subscription(
-                            session,
-                            subscription_name,
-                            event.tx_id,
-                            event.id,
-                        )
-                        updated_checkpoint = True
-
-                session.commit()
-                return processed_count
+        return result.rowcount == 1  # type: ignore
 
     def read_checkpoint_and_lock_subscription(
         self, session: t.Any, subscription_name: str
-    ) -> t.Optional[SubCheckpoint]:
+    ) -> t.Optional[common.SubCheckpoint]:
         query = textwrap.dedent(
             """
             SELECT
@@ -227,19 +143,19 @@ class Esp:
         if row is None:
             return None
 
-        return SubCheckpoint(
+        return common.SubCheckpoint(
             last_tx_id=row[0],
             last_event_id=row[1],
         )
 
     def read_all_events(
         self,
-        session: Session,
+        session: common.Session,
         from_tx_id: t.Optional[int],
         to_tx_id: t.Optional[int],
         limit: int,
         reverse: bool = False,
-    ) -> t.List[RecordedEvent]:
+    ) -> t.List[common.RecordedEvent]:
         """Reads all the events from the table via the transaction ID."""
         if to_tx_id is None and limit is None:
             raise ValueError(
@@ -279,13 +195,13 @@ class Esp:
             args,
         )
         rows = result.fetchall()
-        events: t.List[RecordedEvent] = []
+        events: t.List[common.RecordedEvent] = []
         for row in rows:
             # Row order matches the SELECT list above:
             #   0 → id, 1 → tx_id (as string), 2 → event_type,
             #   3 → json data, 4 → version
             events.append(
-                RecordedEvent(
+                common.RecordedEvent(
                     aggregate_type=row[0],
                     aggregate_id=row[3],
                     id=row[1],
@@ -300,13 +216,13 @@ class Esp:
 
     def read_events_by_aggregate_id(
         self,
-        session: Session,
+        session: common.Session,
         aggregate_id: str,
         limit: int,
         from_version: t.Optional[int],
         to_version: t.Optional[int],
         reverse: bool = False,
-    ) -> t.List[RecordedEvent]:
+    ) -> t.List[common.RecordedEvent]:
         order = "DESC" if reverse else "ASC"
         query = textwrap.dedent(
             f"""
@@ -343,13 +259,13 @@ class Esp:
             },
         )
         rows = result.fetchall()
-        events: t.List[RecordedEvent] = []
+        events: t.List[common.RecordedEvent] = []
         for row in rows:
             # Row order matches the SELECT list above:
             #   0 → id, 1 → tx_id (as string), 2 → event_type,
             #   3 → json data, 4 → version
             events.append(
-                RecordedEvent(
+                common.RecordedEvent(
                     aggregate_type=row[0],
                     aggregate_id=aggregate_id,
                     id=row[1],
@@ -368,7 +284,7 @@ class Esp:
         aggregate_type: str,
         last_processed_tx_id: int,
         last_processed_event_id: int,
-    ) -> t.List[RecordedEvent]:
+    ) -> t.List[common.RecordedEvent]:
         query = textwrap.dedent(
             """
                 SELECT
@@ -396,12 +312,12 @@ class Esp:
             },
         )
         rows = result.fetchall()
-        events: t.List[RecordedEvent] = []
+        events: t.List[common.RecordedEvent] = []
         for row in rows:
             events.append(
-                RecordedEvent(
+                common.RecordedEvent(
                     aggregate_type=aggregate_type,
-                    aggregate_id=row[5],
+                    aggregate_id=str(row[5]),
                     id=row[0],
                     tx_id=int(row[1]),
                     event_type=row[2],
@@ -441,4 +357,4 @@ class Esp:
                 "last_event_id": last_event_id,
             },
         )
-        return result.rowcount > 0
+        return result.rowcount > 0  # type: ignore

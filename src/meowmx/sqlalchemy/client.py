@@ -8,10 +8,9 @@ from . import tables
 
 class Client:
     def __init__(
-        self, engine: common.Engine, sessionmaker: common.SessionMaker
+        self,
     ) -> None:
-        self._engine = engine
-        self._sessionmaker = sessionmaker
+        pass
 
     def setup_tables(self, engine: common.Engine) -> None:
         tables.Base.metadata.create_all(engine)
@@ -26,23 +25,25 @@ class Client:
 
         The aggregate type is assumed to be known by the caller.
         """
-        new_event = tables.EsEvent(
-            aggregate_id=event.aggregate_id,
-            version=event.version,
-            event_type=event.event_type,
-            json_data=event.json,
+        stmt = (
+            sqlalchemy.insert(tables.EsEvent)
+            .values(
+                aggregate_id=event.aggregate_id,
+                version=event.version,
+                event_type=event.event_type,
+                json_data=event.json,
+            )
+            .returning(tables.EsEvent.id, tables.EsEvent.transaction_id)
         )
 
-        session.add(new_event)
-        session.flush()
-
+        new_event = session.execute(stmt).fetchone()
         recorded = common.RecordedEvent(
             aggregate_id=event.aggregate_id,
             aggregate_type=assumed_aggregate_type,
             event_type=event.event_type,
-            id=new_event.id,
+            id=new_event[0],  # type:ignore
             json=event.json,
-            tx_id=new_event.transaction_id,
+            tx_id=new_event[1],  # type:ignore
             version=event.version,
         )
         return recorded
@@ -54,14 +55,14 @@ class Client:
         aggregate_id: str,  # UUID string – SQLAlchemy will coerce to UUID if the column type is UUID
     ) -> None:
         # start a nested session; if it fails, it's no biggie
-        with session.begin_nested() as session2:
+        with session.begin_nested():
             stmt = sqlalchemy.insert(tables.EsAggregate).values(
                 id=aggregate_id,
                 version=-1,
                 aggregate_type=aggregate_type,
             )
             try:
-                session2.execute(stmt)
+                session.execute(stmt)
             except exc.IntegrityError:
                 pass
 
@@ -97,69 +98,6 @@ class Client:
 
         result = session.execute(stmt)
         return result.rowcount == 1
-
-    def handle_subscription_events(
-        self,
-        subscription_name: str,
-        aggregate_type: str,
-        batch_size: int,
-        handler: common.EventHandler,
-    ) -> int:
-        # TODO: This code is duplicated, de-dupe it somehow
-        """Handles the next event in the subscription.
-
-        Returns the number of events handled, or zero if there was no event.
-        If there is an event, calls the handler. On success updates the
-        checkpoint.
-        If the handler raises an exception, then releases the lock on the event.
-        """
-        with self._sessionmaker() as session:
-            self.create_subscription_if_absent(session, subscription_name)
-            checkpoint = self.read_checkpoint_and_lock_subscription(
-                session, subscription_name
-            )
-            if not checkpoint:
-                # this can happen if we can't lock a record
-                session.commit()
-                return 0
-            else:
-                events = self.read_events_after_checkpoint(
-                    session,
-                    aggregate_type,
-                    checkpoint.last_tx_id,
-                    checkpoint.last_event_id,
-                )
-
-                updated_checkpoint = False
-
-                processed_count = 0
-                for event in events:
-                    if processed_count >= batch_size:
-                        break
-                    processed_count += 1
-
-                    with session.begin_nested() as session2:
-                        try:
-                            handler(session2, event)
-                        except Exception:
-                            session2.rollback()
-                            # if we need to update the check point at all,
-                            # commit what we got, especially if this is being
-                            # a problematic event
-                            if updated_checkpoint:
-                                session.commit()
-                            raise
-                        # session2.commit()
-                        self.update_event_subscription(
-                            session,
-                            subscription_name,
-                            event.tx_id,
-                            event.id,
-                        )
-                        updated_checkpoint = True
-
-                session.commit()
-                return processed_count
 
     def read_checkpoint_and_lock_subscription(
         self, session: t.Any, subscription_name: str
@@ -219,9 +157,9 @@ class Client:
                 )
             )
             .order_by(
-                tables.EsEvent.transaction_id.desc
+                tables.EsEvent.transaction_id.desc()
                 if reverse
-                else tables.EsEvent.transaction_id.asc
+                else tables.EsEvent.transaction_id.asc()
             )
             .limit(limit)
         )
@@ -275,7 +213,9 @@ class Client:
                 )
             )
             .order_by(
-                tables.EsEvent.version.desc if reverse else tables.EsEvent.version.asc
+                tables.EsEvent.version.desc()
+                if reverse
+                else tables.EsEvent.version.asc()
             )
             .limit(limit)
         )
@@ -340,7 +280,7 @@ class Client:
 
     def update_event_subscription(
         self,
-        session: t.Any,
+        session: common.Session,
         subscription_name: str,
         last_tx_id: int,
         last_event_id: int,

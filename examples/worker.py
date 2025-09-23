@@ -22,12 +22,12 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    meow = meowmx.Client(demolib.DEMO_PG_URL)
+    meow = demolib.create_meowmx()
 
     start_time = time.perf_counter()
     count = 0
 
-    def handler(session: meowmx.Session, event: meowmx.RecordedEvent):
+    def handler(session: meowmx.Session, event: meowmx.RecordedEvent) -> None:
         existing_events = meow.load(event.aggregate_type, event.aggregate_id)
         end_time = time.perf_counter()
         nonlocal count
@@ -42,7 +42,7 @@ def main() -> None:
         args.sub_name,
         args.aggregate_type,
         batch_size=200,
-        timelimit=10,
+        max_sleep_time=10,
         handler=handler,
     )
 

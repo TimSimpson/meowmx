@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    CHAR,
     Column,
     Integer,
     BigInteger,
@@ -7,17 +8,20 @@ from sqlalchemy import (
     Index,
     ForeignKey,
     PrimaryKeyConstraint,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, mapped_column
-from sqlalchemy.dialects.postgresql import UUID, JSON
+from sqlalchemy.dialects.postgresql import JSON
 
-Base = DeclarativeBase
+
+class Base(DeclarativeBase):
+    pass
 
 
 class EsAggregate(Base):
     __tablename__ = "es_aggregate"
 
-    id = mapped_column(UUID(as_uuid=True), primary_key=True)
+    id = mapped_column(CHAR(64), primary_key=True)
     version = mapped_column(Integer, nullable=False)
     aggregate_type = mapped_column(Text, nullable=False)
 
@@ -27,10 +31,14 @@ class EsAggregate(Base):
 class EsEvent(Base):
     __tablename__ = "es_event"
 
-    id = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    transaction_id = mapped_column(BigInteger, nullable=False)
+    id = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+    transaction_id = mapped_column(BigInteger, nullable=False, server_default=text("0"))
     aggregate_id = mapped_column(
-        UUID(as_uuid=True),
+        CHAR(64),
         ForeignKey("es_aggregate.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -54,7 +62,7 @@ class EsAggregateSnapshot(Base):
     __tablename__ = "es_aggregate_snapshot"
 
     aggregate_id = mapped_column(
-        UUID(as_uuid=True),
+        CHAR(64),
         ForeignKey("es_aggregate.id", ondelete="CASCADE"),
         nullable=False,
     )

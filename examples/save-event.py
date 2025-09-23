@@ -32,7 +32,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    meow = meowmx.Client(demolib.DEMO_PG_URL)
+    meow = demolib.create_meowmx()
 
     try:
         json_obj = json.loads(args.data)
