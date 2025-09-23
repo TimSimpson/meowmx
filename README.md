@@ -2,7 +2,7 @@
 
 This takes many of the ideas from Eugene Khyst's [postgresql-event-sourcing](https://github.com/eugene-khyst/postgresql-event-sourcing) project and implements them worse in Python.
 
-The end result, meowmx, lets you:
+The end result, meowmx, lets you use PostgreSQL to:
 
 * write events containing plain JSON data, which can later be looked up by category or aggregate IDs
 * subscribe to events, allowing you to create workers that iterate through them.
@@ -26,10 +26,13 @@ To make a gross simplification event-sourcing just says hey maybe all those even
 
 There's also the notion of aggregates, which are basically objects that can be constructed by reading a set of events. In my experience that kind of "helper" code is extremely easy to write but obscures the basic utility of event sourcing libraries like this one. The right way to construct it is also fairly opinionated. So for now this project has no "aggregate" code. 
 
+## Notes on SqlAlchemy
+
+This code assumes Postgres via SqlAlchemy.
+
+The code also has nerfed support for other databases with SqlAlchemy, but this is just useful for testing (for example: if an app uses sqlalchemy with Postgres in production but supports using Sqlite for automated tests).
 
 ## Usage
-
-This code assumes Postgres via SqlAlchemy. 
 
 Import the `meowmx` package and create a client.
 
@@ -43,28 +46,12 @@ Setup:
 ```bash
 just start-docker-db
 just usql  # open repl
-uv sync
+just test-psql
+just examples read-events # view all events written by the tests
+just examples # see examples
 ```
-
-To view all events as they happen, run this in a terminal:
-
-```bash
-uv run -- demo/sub  # watch for changes in a screen
-```
-
-Now tun this command in another terminal:
-
-```bash
-uv run -- demo/update-cat blanco  # update a stream in a screen. Run this twice to look at 
-```
-
-It will load a stream named "blanco", prompt you to hit enter, and then save a new event to the stream.
-
-To test atomic writes, start this in two terminals, then hit enter in one and then the other. It will fail in the second one since the version number for the stream will be old.
-
 
 ## TODO
 
 [ ] don't force `version` on NewEvent, it's a headache
-[ ] Allow for XID on Event
-[ ] Allow for any string, if possible
+[ ] Allow for other aggregate IDs types

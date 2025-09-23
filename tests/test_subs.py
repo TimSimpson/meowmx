@@ -5,6 +5,7 @@ import typing as t
 import uuid
 
 import coolname  # type: ignore
+import pytest
 
 import meowmx
 
@@ -127,6 +128,7 @@ class Worker:
         )
 
 
+@pytest.mark.timeout(60)
 def test_subscriptions(meow: meowmx.Client) -> None:
     rname = _generate_slug()
     aggregate_type = f"meowmx-st-{rname}"

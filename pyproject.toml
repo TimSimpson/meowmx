@@ -1,12 +1,11 @@
 [project]
 name = "meowmx"
 version = "0.1.0"
-description = "Add your description here"
+description = "Managed Event Orchestration With Multiple eXecutors"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "psycopg>=3.2.9",
-    "python-event-sourcery==0.4.0a15",
     "sqlalchemy>=2.0.43",
 ]
 
@@ -15,6 +14,7 @@ dev = [
     "coolname>=2.2.0",
     "mypy>=1.17.0",
     "pytest>=8.4.1",
+    "pytest-timeout>=2.4.0",
     "ruff>=0.12.4",
 ]
 
@@ -28,3 +28,6 @@ disallow_untyped_defs = true
 files = ["examples", "src", "tests"]
 warn_return_any = true
 warn_unused_configs = true
+
+timeout = 300
+
