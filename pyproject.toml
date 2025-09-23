@@ -8,6 +8,15 @@ dependencies = [
     "psycopg>=3.2.9",
     "sqlalchemy>=2.0.43",
 ]
+license = "Apache-2.0"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.13",
+]
+authors = [
+  {name = "Tim Simpson"},
+]
 
 [dependency-groups]
 dev = [
