@@ -7,6 +7,12 @@ from sqlalchemy.orm import Session
 
 @dataclass
 class NewEvent:
+    event_type: str
+    json: t.Dict[str, t.Any]
+
+
+@dataclass
+class NewEventRow:
     aggregate_id: str
     event_type: str
     json: t.Dict[str, t.Any]
@@ -41,7 +47,7 @@ class Client(t.Protocol):
     def append_event(
         self,
         session: Session,
-        event: NewEvent,
+        event: NewEventRow,
         assumed_aggregate_type: str,
     ) -> RecordedEvent: ...
 

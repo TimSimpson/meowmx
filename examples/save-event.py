@@ -42,13 +42,13 @@ def main() -> None:
 
     events = [
         meowmx.NewEvent(
-            aggregate_id=args.aggregate_id,
             event_type=args.event_type,
             json=json_obj,
-            version=args.version,
         )
     ]
-    meow.save_events(args.aggregate_type, args.aggregate_id, events)
+    meow.save_events(
+        args.aggregate_type, args.aggregate_id, events, version=args.version
+    )
 
 
 if __name__ == "__main__":

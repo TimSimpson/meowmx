@@ -18,32 +18,26 @@ def test_save_and_load_events(meow: meowmx.Client) -> None:
     aggregate_id = str(uuid.uuid4())
     events = [
         meowmx.NewEvent(
-            aggregate_id=aggregate_id,
             event_type="MeowMxTestAggregateCreated",
             json={
                 "time": datetime.now().isoformat(),
             },
-            version=0,
         ),
         meowmx.NewEvent(
-            aggregate_id=aggregate_id,
             event_type="MeowMxTestAggregateOrderRecieved",
             json={
                 "order_no": 52328,
                 "time": datetime.now().isoformat(),
             },
-            version=1,
         ),
         meowmx.NewEvent(
-            aggregate_id=aggregate_id,
             event_type="MeowMxTestAggregateDeleted",
             json={
                 "time": datetime.now().isoformat(),
             },
-            version=2,
         ),
     ]
-    recorded_events = meow.save_events("meowmx-test", aggregate_id, events)
+    recorded_events = meow.save_events("meowmx-test", aggregate_id, events, version=0)
 
     assert recorded_events == [
         meowmx.RecordedEvent(
@@ -89,15 +83,13 @@ def test_concurrent_save_check(meow: meowmx.Client) -> None:
 
     events = [
         meowmx.NewEvent(
-            aggregate_id=aggregate_id,
             event_type="MeowMxTestAggregateCreated",
             json={
                 "time": datetime.now().isoformat(),
             },
-            version=0,
         ),
     ]
-    recorded_events = meow.save_events("meowmx-test", aggregate_id, events)
+    recorded_events = meow.save_events("meowmx-test", aggregate_id, events, version=0)
     assert recorded_events == [
         meowmx.RecordedEvent(
             aggregate_type=aggregate_type,
@@ -113,21 +105,21 @@ def test_concurrent_save_check(meow: meowmx.Client) -> None:
     ]
 
     with pytest.raises(meowmx.ExpectedVersionFailure):
-        meow.save_events("meowmx-test", aggregate_id, events)
+        meow.save_events("meowmx-test", aggregate_id, events, version=0)
 
     events2 = [
         meowmx.NewEvent(
-            aggregate_id=aggregate_id,
             event_type="MeowMxTestAggregateOrderRecieved",
             json={
                 "order_no": 52328,
                 "time": datetime.now().isoformat(),
             },
-            version=1,
         ),
     ]
 
-    recorded_events_2 = meow.save_events("meowmx-test", aggregate_id, events2)
+    recorded_events_2 = meow.save_events(
+        "meowmx-test", aggregate_id, events2, version=1
+    )
 
     assert recorded_events_2 == [
         meowmx.RecordedEvent(

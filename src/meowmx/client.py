@@ -143,18 +143,25 @@ class Client:
             )
 
     def save_events(
-        self, aggregate_type: str, aggregate_id: str, events: t.List[common.NewEvent]
+        self,
+        aggregate_type: str,
+        aggregate_id: str,
+        events: t.List[common.NewEvent],
+        version: int,
     ) -> t.List[common.RecordedEvent]:
         if len(events) == 0:
             return []
-        new_version = events[0].version
-        expected_version = new_version - 1
-        for index in range(1, len(events)):
-            new_version += 1
-            if events[index].version != new_version:
-                raise ValueError(
-                    "event versions do not increase; no gaps should be found in the version of each new event"
-                )
+        next_expected_version: int = version
+        new_event_rows: t.List[common.NewEventRow] = [
+            common.NewEventRow(
+                aggregate_id=aggregate_id,
+                event_type=element.event_type,
+                json=element.json,
+                version=next_expected_version + index,
+            )
+            for index, element in enumerate(events)
+        ]
+        expected_version = version - 1
 
         with self._session_maker() as session:
             try:
@@ -162,15 +169,15 @@ class Client:
                     session, aggregate_type, aggregate_id
                 )
                 if not self._esp.check_and_update_aggregate_version(
-                    session, aggregate_id, expected_version, new_version
+                    session, aggregate_id, expected_version, version
                 ):
                     raise ExpectedVersionFailure(
                         f"{aggregate_type} - {aggregate_id} did not match expected_version of {expected_version}"
                     )
                 results = []
-                for event in events:
+                for new_event_row in new_event_rows:
                     recorded_event = self._esp.append_event(
-                        session, event, aggregate_type
+                        session, new_event_row, aggregate_type
                     )
                     results.append(recorded_event)
                 session.commit()

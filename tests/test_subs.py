@@ -68,19 +68,17 @@ class AggregateWriter:
 
         events = [
             meowmx.NewEvent(
-                aggregate_id=aggregate_id,
                 event_type=event_type,
                 json={
                     "version": version,
                     "random_slug": _generate_slug(),
                 },
-                version=version,
             )
         ]
-        print(
-            f" -> writing {self._aggregate_type} - {aggregate_id} - {events[0].version}..."
+        print(f" -> writing {self._aggregate_type} - {aggregate_id} - {version}...")
+        recorded_events = meow.save_events(
+            self._aggregate_type, aggregate_id, events, version
         )
-        recorded_events = meow.save_events(self._aggregate_type, aggregate_id, events)
         self._events.append(recorded_events[0])
         self._aggregate_versions[aggregate_id] += 1
         self._count += 1

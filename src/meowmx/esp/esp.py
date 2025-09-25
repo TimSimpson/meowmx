@@ -26,7 +26,7 @@ class Esp:
     def append_event(
         self,
         session: common.Session,
-        event: common.NewEvent,
+        event: common.NewEventRow,
         assumed_aggregate_type: str,
     ) -> common.RecordedEvent:
         """Inserts an event.

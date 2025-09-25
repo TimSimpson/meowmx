@@ -88,16 +88,14 @@ def main() -> None:
 
         events = [
             meowmx.NewEvent(
-                aggregate_id=aggregate_id,
                 event_type=event_type,
                 json={
                     "version": version,
                     "random_slug": _generate_slug(),
                 },
-                version=version,
             )
         ]
-        meow.save_events(args.aggregate_type, aggregate_id, events)
+        meow.save_events(args.aggregate_type, aggregate_id, events, version)
         aggregate_versions[aggregate_id] += 1
         count += 1
 
