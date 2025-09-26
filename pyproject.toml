@@ -1,9 +1,9 @@
 [project]
 name = "meowmx"
-version = "0.1.0"
+version = "0.1.1"
 description = "Managed Event Orchestration With Multiple eXecutors"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
     "psycopg>=3.2.9",
     "sqlalchemy>=2.0.43",
@@ -40,6 +40,3 @@ disallow_untyped_defs = true
 files = ["examples", "src", "tests"]
 warn_return_any = true
 warn_unused_configs = true
-
-timeout = 300
-

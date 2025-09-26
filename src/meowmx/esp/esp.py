@@ -250,8 +250,8 @@ class Esp:
                 FROM es_event e
                 JOIN es_aggregate a ON a.ID = e.aggregate_id
                 WHERE aggregate_id = :aggregate_id
-                AND (:from_version IS NULL OR e.version > :from_version)
-                AND (:to_version IS NULL OR e.version <= :to_version)
+                AND (:from_version IS NULL OR e.version >= :from_version)
+                AND (:to_version IS NULL OR e.version < :to_version)
                 ORDER BY e.version {order}
                 LIMIT :limit
                 """

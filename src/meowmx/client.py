@@ -141,7 +141,7 @@ class Client:
     ) -> t.List[common.RecordedEvent]:
         limit = limit or DEFAULT_LIMIT
         if from_version is None and not reverse:
-            from_version = -1
+            from_version = 0
 
         with self._session_maker() as session:
             return self._esp.read_events_by_aggregate_id(

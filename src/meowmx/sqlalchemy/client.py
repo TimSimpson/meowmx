@@ -224,10 +224,10 @@ class Client:
             .where(
                 sqlalchemy.and_(
                     tables.EsEvent.aggregate_id == sqlalchemy.literal(aggregate_id),
-                    (tables.EsEvent.version > sqlalchemy.literal(from_version))
+                    (tables.EsEvent.version >= sqlalchemy.literal(from_version))
                     if from_version is not None
                     else sqlalchemy.true(),
-                    (tables.EsEvent.version <= sqlalchemy.literal(to_version))
+                    (tables.EsEvent.version < sqlalchemy.literal(to_version))
                     if to_version is not None
                     else sqlalchemy.true(),
                 )

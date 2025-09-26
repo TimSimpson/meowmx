@@ -54,7 +54,7 @@ class AggregateWriter:
                 self._aggregate_type, aggregate_id, 0, limit=36500
             )
             version = self._aggregate_versions[aggregate_id]
-            if version != len(existing_events):
+            if version != (len(existing_events) - 1):
                 print(f"ERROR! version we expected={version}")
                 print(f"                but we got={len(existing_events)}")
                 raise RuntimeError("bad version")
