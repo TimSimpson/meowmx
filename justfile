@@ -18,8 +18,13 @@ run:
 start-docker-db:
     {{ docker }} run -d --name postgres-sqlalchemy -e POSTGRES_PASSWORD=eventsourcing -e POSTGRES_USER=eventsourcing -e POSTGRES_DB=eventsourcing -p 5443:5432 docker.io/postgres
 
+clean-sqlite:
+    mkdir -p target
+    rm target/sqlite.db
+
 test:
-    uv run -- pytest -vv --sql-type sqlite --sql-url 'sqlite:///:memory:'
+    mkdir -p target
+    uv run -- pytest -vv --sql-type sqlite --sql-url 'sqlite:///target/sqlite.db'
 
 test-psql:
     uv run -- pytest -vv --sql-type sqlite --sql-url 'postgresql+psycopg://eventsourcing:eventsourcing@localhost:5443/eventsourcing?sslmode=disable'
