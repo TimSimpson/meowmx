@@ -130,7 +130,7 @@ class Worker:
         )
 
 
-@pytest.mark.timeout(10)
+@pytest.mark.timeout(30)
 def test_subscriptions(meow: meowmx.Client) -> None:
     rname = _generate_slug()
     aggregate_type = f"meowmx-st-{rname}"

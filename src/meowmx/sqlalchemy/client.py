@@ -1,6 +1,5 @@
 import typing as t
 import sqlalchemy
-from sqlalchemy import exc
 
 from .. import common
 from . import tables
@@ -61,31 +60,36 @@ class Client:
         aggregate_id: str,  # UUID string – SQLAlchemy will coerce to UUID if the column type is UUID
     ) -> None:
         # start a nested session; if it fails, it's no biggie
-        with session.begin():
-            with session.begin_nested():
-                stmt = sqlalchemy.insert(tables.EsAggregate).values(
-                    id=aggregate_id,
-                    version=-1,
-                    aggregate_type=aggregate_type,
-                )
-                try:
-                    session.execute(stmt)
-                except exc.IntegrityError:
-                    pass
+        select = sqlalchemy.select(
+            tables.EsAggregate.version,
+        ).where(tables.EsAggregate.id == aggregate_id)
+        exists = session.execute(select).scalar_one_or_none() is not None
+        if exists:
+            return
+
+        insert = sqlalchemy.insert(tables.EsAggregate).values(
+            id=aggregate_id,
+            version=-1,
+            aggregate_type=aggregate_type,
+        )
+        session.execute(insert)
 
     def create_subscription_if_absent(
         self, session: common.Session, subscription_name: str
     ) -> None:
-        stmt = sqlalchemy.insert(tables.EsEventSubscription).values(
+        select = sqlalchemy.select(
+            tables.EsEventSubscription.subscription_name,
+        ).where(tables.EsEventSubscription.subscription_name == subscription_name)
+        exists = session.execute(select).scalar_one_or_none() is not None
+        if exists:
+            return
+
+        insert = sqlalchemy.insert(tables.EsEventSubscription).values(
             subscription_name=subscription_name,
             last_transaction_id=0,
             last_event_id=0,
         )
-        try:
-            session.execute(stmt)
-        except exc.IntegrityError:
-            session.rollback()
-            session.begin()
+        session.execute(insert)
 
     def check_and_update_aggregate_version(
         self,
@@ -126,6 +130,15 @@ class Client:
         return common.SubCheckpoint(
             last_tx_id=row.last_transaction_id, last_event_id=row.last_event_id
         )
+
+    def get_aggregate_version(
+        self, session: common.Session, aggregate_type: str, aggregate_id: str
+    ) -> t.Optional[int]:
+        stmt = sqlalchemy.select(
+            tables.EsAggregate.version,
+        ).where(tables.EsAggregate.id == aggregate_id)
+
+        return session.execute(stmt).scalar_one_or_none()
 
     def read_all_events(
         self,

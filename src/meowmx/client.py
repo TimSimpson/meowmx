@@ -1,3 +1,4 @@
+import contextlib
 import threading
 import time
 import typing as t
@@ -104,14 +105,24 @@ class Client:
                     session.commit()
                     return processed_count
 
+    def _start_session_if_desired(
+        self, session: t.Optional[common.Session]
+    ) -> contextlib.AbstractContextManager[common.Session]:
+        if session is not None:
+            # return the already created session
+            return contextlib.nullcontext(session)
+        else:
+            return self._session_maker()
+
     def load_all(
         self,
         from_tx_id: t.Optional[int],
         to_tx_id: t.Optional[int],
         limit: t.Optional[int],
+        session: t.Optional[common.Session] = None,
     ) -> t.List[common.RecordedEvent]:
         limit = limit or DEFAULT_LIMIT
-        with self._session_maker() as session:
+        with self._start_session_if_desired(session) as session:
             return self._esp.read_all_events(
                 session,
                 limit=limit,
@@ -147,29 +158,52 @@ class Client:
         aggregate_type: str,
         aggregate_id: str,
         events: t.List[common.NewEvent],
-        version: int,
+        version: t.Optional[int],
+        session: t.Optional[common.Session] = None,
     ) -> t.List[common.RecordedEvent]:
+        """Writes the events to database under the given aggregate.
+
+        `version` should be the first version number of the new events (zero if
+        starting a new stream).
+        If `session` is passed in the user is responsible for starting and
+        committing the transaction. If None is passed this code will do those
+        things itself.
+        """
         if len(events) == 0:
             return []
-        next_expected_version: int = version
-        new_event_rows: t.List[common.NewEventRow] = [
-            common.NewEventRow(
-                aggregate_id=aggregate_id,
-                event_type=element.event_type,
-                json=element.json,
-                version=next_expected_version + index,
-            )
-            for index, element in enumerate(events)
-        ]
-        expected_version = version - 1
+        with self._start_session_if_desired(session) as session_2:
+            tx: contextlib.AbstractContextManager
+            if session is None:
+                # If we're controlling things, commit / rollback at the end of this.
+                tx = session_2.begin()
+            else:
+                # If the user is controlling it, don't commit or rollback.
+                tx = contextlib.nullcontext()
+            with tx:
+                if version is None:
+                    version = self._esp.get_aggregate_version(
+                        session_2, aggregate_type, aggregate_id
+                    )
+                    if version is None:
+                        version = 0
 
-        with self._session_maker() as session:
-            try:
+                next_expected_version: int = version
+                new_event_rows: t.List[common.NewEventRow] = [
+                    common.NewEventRow(
+                        aggregate_id=aggregate_id,
+                        event_type=element.event_type,
+                        json=element.json,
+                        version=next_expected_version + index,
+                    )
+                    for index, element in enumerate(events)
+                ]
+                expected_version = version - 1
+
                 self._esp.create_aggregate_if_absent(
-                    session, aggregate_type, aggregate_id
+                    session_2, aggregate_type, aggregate_id
                 )
                 if not self._esp.check_and_update_aggregate_version(
-                    session, aggregate_id, expected_version, version
+                    session_2, aggregate_id, expected_version, version
                 ):
                     raise ExpectedVersionFailure(
                         f"{aggregate_type} - {aggregate_id} did not match expected_version of {expected_version}"
@@ -177,14 +211,10 @@ class Client:
                 results = []
                 for new_event_row in new_event_rows:
                     recorded_event = self._esp.append_event(
-                        session, new_event_row, aggregate_type
+                        session_2, new_event_row, aggregate_type
                     )
                     results.append(recorded_event)
-                session.commit()
                 return results
-            except:
-                session.rollback()
-                raise
 
     def sub(
         self,

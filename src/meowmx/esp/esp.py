@@ -121,6 +121,20 @@ class Esp:
         )
         return result.rowcount == 1  # type: ignore
 
+    def get_aggregate_version(
+        self, session: common.Session, aggregate_type: str, aggregate_id: str
+    ) -> t.Optional[int]:
+        """Inserts the aggregate type into the table"""
+        query = textwrap.dedent("""
+            SELECT version
+                FROM   es_aggregate
+                WHERE  id = :aggregate_id            
+            """)
+        return session.execute(
+            text(query),
+            {"aggregate_id": aggregate_id, "aggregate_type": aggregate_type},
+        ).scalar_one_or_none()
+
     def read_checkpoint_and_lock_subscription(
         self, session: t.Any, subscription_name: str
     ) -> t.Optional[common.SubCheckpoint]:
