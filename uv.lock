@@ -76,7 +76,6 @@ name = "meowmx"
 version = "0.1.1"
 source = { editable = "." }
 dependencies = [
-    { name = "psycopg" },
     { name = "sqlalchemy" },
 ]
 
@@ -84,21 +83,20 @@ dependencies = [
 dev = [
     { name = "coolname" },
     { name = "mypy" },
+    { name = "psycopg" },
     { name = "pytest" },
     { name = "pytest-timeout" },
     { name = "ruff" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "psycopg", specifier = ">=3.2.9" },
-    { name = "sqlalchemy", specifier = ">=2.0.43" },
-]
+requires-dist = [{ name = "sqlalchemy", specifier = ">=2.0.43" }]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "coolname", specifier = ">=2.2.0" },
     { name = "mypy", specifier = ">=1.17.0" },
+    { name = "psycopg", specifier = ">=3.2.9" },
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "ruff", specifier = ">=0.12.4" },
