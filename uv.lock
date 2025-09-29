@@ -84,6 +84,7 @@ dev = [
     { name = "coolname" },
     { name = "mypy" },
     { name = "psycopg" },
+    { name = "py-xid" },
     { name = "pytest" },
     { name = "pytest-timeout" },
     { name = "ruff" },
@@ -97,6 +98,7 @@ dev = [
     { name = "coolname", specifier = ">=2.2.0" },
     { name = "mypy", specifier = ">=1.17.0" },
     { name = "psycopg", specifier = ">=3.2.9" },
+    { name = "py-xid", specifier = ">=1.0.0" },
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "ruff", specifier = ">=0.12.4" },
@@ -181,6 +183,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/27/4a/93a6ab570a8d1a4ad171a1f4256e205ce48d828781312c0bbaff36380ecb/psycopg-3.2.9.tar.gz", hash = "sha256:2fbb46fcd17bc81f993f28c47f1ebea38d66ae97cc2dbc3cad73b37cefbff700", size = 158122, upload-time = "2025-05-13T16:11:15.533Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/44/b0/a73c195a56eb6b92e937a5ca58521a5c3346fb233345adc80fd3e2f542e2/psycopg-3.2.9-py3-none-any.whl", hash = "sha256:01a8dadccdaac2123c916208c96e06631641c0566b22005493f09663c7a8d3b6", size = 202705, upload-time = "2025-05-13T16:06:26.584Z" },
+]
+
+[[package]]
+name = "py-xid"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1b/3c/17dfdf554ba119b313f1da475f46be2f4e85a1aa137e36e019fd831d2a4a/py-xid-1.0.0.tar.gz", hash = "sha256:82e5bbdab92d104fcc2bcb95a169ecaf126e72f838f0da6900efd9a1323ed05f", size = 5181, upload-time = "2023-10-05T23:32:06.381Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/21/8e/113870495d82c4f190bf9b994b4895beee7abe507a68ceef0b3420004fef/py_xid-1.0.0-py3-none-any.whl", hash = "sha256:759375239460ff9bebbf277fb469b2147236049268295a3708280818b806476b", size = 4531, upload-time = "2023-10-05T23:32:05.076Z" },
 ]
 
 [[package]]

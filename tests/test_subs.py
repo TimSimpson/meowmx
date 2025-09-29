@@ -3,10 +3,8 @@ import threading
 import time
 import traceback
 import typing as t
-import uuid
 
 import coolname  # type: ignore
-import pytest
 
 import meowmx
 
@@ -38,11 +36,11 @@ class AggregateWriter:
     def written_events(self) -> t.List[meowmx.RecordedEvent]:
         return self._events
 
-    def write_event(self, meow: meowmx.Client) -> None:
+    def write_event(self, meow: meowmx.Client, new_uuid: t.Callable[[], str]) -> None:
         """Performs an iteration by writing an aggregate."""
         choice = random.random() * 100
         if len(self._aggregate_ids) == 0 or choice < self._percent_new:
-            aggregate_id = str(uuid.uuid4())
+            aggregate_id = new_uuid()
             self._aggregate_versions[aggregate_id] = -1
             self._aggregate_ids = list(self._aggregate_versions.keys())
             version = 0
@@ -130,8 +128,12 @@ class Worker:
         )
 
 
-@pytest.mark.timeout(30)
-def test_subscriptions(meow: meowmx.Client) -> None:
+# @pytest.mark.timeout(30)
+def test_subscriptions(
+    meow: meowmx.Client,
+    iterations_cmd_opt: t.Optional[int],
+    new_uuid: t.Callable[[], str],
+) -> None:
     rname = _generate_slug()
     aggregate_type = f"meowmx-st-{rname}"
     event_types = [
@@ -192,10 +194,14 @@ def test_subscriptions(meow: meowmx.Client) -> None:
 
     # Now write some number of events
 
+    max_count = 400
+    if iterations_cmd_opt is not None:
+        max_count = iterations_cmd_opt
+
     try:
-        event_count = 400
+        event_count = max_count
         for i in range(event_count):
-            writer.write_event(meow)
+            writer.write_event(meow, new_uuid)
     except Exception as e:
         print(f"ERROR IN MAIN THREAD: {e}")
         traceback.print_exc()

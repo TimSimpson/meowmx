@@ -17,9 +17,11 @@ class MutexLockedClient:
         self._client = client
         self._mutex = threading.Lock()
 
-    def setup_tables(self, engine: common.Engine) -> None:
+    def setup_tables(
+        self, engine: common.Engine, aggregate_id_column_type: t.Optional[str]
+    ) -> None:
         with self._mutex:
-            self._client.setup_tables(engine)
+            self._client.setup_tables(engine, aggregate_id_column_type)
 
     def append_event(
         self,

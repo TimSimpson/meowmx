@@ -39,8 +39,8 @@ class Client:
             if sqlalchemy.engine_is_in_memory_db(self._engine):
                 self._esp = sqlalchemy.MutexLockedClient(self._esp)
 
-    def setup_tables(self) -> None:
-        self._esp.setup_tables(self._engine)
+    def setup_tables(self, aggregate_id_column_type: t.Optional[str] = None) -> None:
+        self._esp.setup_tables(self._engine, aggregate_id_column_type)
 
     def _handle_subscription_events(
         self,

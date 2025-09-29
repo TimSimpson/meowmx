@@ -17,7 +17,9 @@ class Client:
     def __init__(self) -> None:
         pass
 
-    def setup_tables(self, engine: common.Engine) -> None:
+    def setup_tables(
+        self, engine: common.Engine, aggregate_id_column_type: t.Optional[str]
+    ) -> None:
         tables.Base.metadata.create_all(engine)
 
     def append_event(

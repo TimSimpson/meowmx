@@ -9,7 +9,9 @@ from .types import (
 
 
 class Client(t.Protocol):
-    def setup_tables(self, engine: Engine) -> None: ...
+    def setup_tables(
+        self, engine: Engine, aggregate_id_column_type: t.Optional[str]
+    ) -> None: ...
 
     def append_event(
         self,

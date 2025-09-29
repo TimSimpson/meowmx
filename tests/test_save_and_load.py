@@ -1,6 +1,5 @@
 from datetime import datetime
 import typing as t
-import uuid
 from unittest.mock import ANY
 
 import coolname  # type: ignore
@@ -13,9 +12,11 @@ def _generate_slug() -> str:
     return t.cast(str, coolname.generate_slug())
 
 
-def test_save_and_load_events(meow: meowmx.Client) -> None:
+def test_save_and_load_events(
+    meow: meowmx.Client, new_uuid: t.Callable[[], str]
+) -> None:
     aggregate_type = "meowmx-test"
-    aggregate_id = str(uuid.uuid4())
+    aggregate_id = new_uuid()
     events = [
         meowmx.NewEvent(
             event_type="MeowMxTestAggregateCreated",
@@ -77,9 +78,11 @@ def test_save_and_load_events(meow: meowmx.Client) -> None:
     ]
 
 
-def test_concurrent_save_check(meow: meowmx.Client) -> None:
+def test_concurrent_save_check(
+    meow: meowmx.Client, new_uuid: t.Callable[[], str]
+) -> None:
     aggregate_type = "meowmx-test"
-    aggregate_id = str(uuid.uuid4())
+    aggregate_id = new_uuid()
 
     events = [
         meowmx.NewEvent(

@@ -1,6 +1,5 @@
 from datetime import datetime
 import typing as t
-import uuid
 
 import coolname  # type: ignore
 import pytest
@@ -30,11 +29,13 @@ class ExampleError(RuntimeError):
     pass
 
 
-def test_combined_read_model(engine: meowmx.Engine, meow: meowmx.Client) -> None:
+def test_combined_read_model(
+    engine: meowmx.Engine, meow: meowmx.Client, new_uuid: t.Callable[[], str]
+) -> None:
     Base.metadata.create_all(engine)
 
     aggregate_type = "potato"
-    potato_id = str(uuid.uuid4())
+    potato_id = new_uuid()
 
     def load_potato() -> t.Optional[Potato]:
         with orm.Session(engine) as session:
@@ -126,14 +127,16 @@ def test_combined_read_model(engine: meowmx.Engine, meow: meowmx.Client) -> None
     assert potato_rm.description == modified_desc
 
 
-def test_combined_event_writes(engine: meowmx.Engine, meow: meowmx.Client) -> None:
+def test_combined_event_writes(
+    engine: meowmx.Engine, meow: meowmx.Client, new_uuid: t.Callable[[], str]
+) -> None:
     Base.metadata.create_all(engine)
 
     aggregate_type_1 = "tree"
     aggregate_type_2 = "flower"
 
-    tree_id = str(uuid.uuid4())
-    flower_id = str(uuid.uuid4())
+    tree_id = new_uuid()
+    flower_id = new_uuid()
 
     with orm.Session(engine) as session:
         with session.begin():

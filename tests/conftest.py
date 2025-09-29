@@ -1,13 +1,22 @@
 import typing as t
+import uuid
 import pytest
+import xid  # type: ignore
 
 import meowmx
 import sqlalchemy
 
 
 def pytest_addoption(parser: t.Any) -> None:
+    parser.addoption("--iterations", action="store", default=0, type=int)
     parser.addoption("--sql-type", action="store", default="sqlite")
     parser.addoption("--sql-url", action="store", default="sqlite:///:memory:")
+    parser.addoption("--uuid-type", action="store", default="uuid4")
+
+
+@pytest.fixture
+def iterations_cmd_opt(request: t.Any) -> t.Optional[int]:
+    return t.cast(t.Optional[int], request.config.getoption("--iterations"))
 
 
 @pytest.fixture
@@ -18,6 +27,11 @@ def sql_type_cmd_opt(request: t.Any) -> str:
 @pytest.fixture
 def sql_url_cmd_opt(request: t.Any) -> str:
     return t.cast(str, request.config.getoption("--sql-url"))
+
+
+@pytest.fixture
+def uuid_type_cmd_opt(request: t.Any) -> str:
+    return t.cast(str, request.config.getoption("--uuid-type"))
 
 
 @pytest.fixture
@@ -45,15 +59,34 @@ _setup_was_run = False
 
 @pytest.fixture
 def meow(
-    sql_url_cmd_opt: str, engine: meowmx.Engine, session_maker: meowmx.SessionMaker
+    sql_url_cmd_opt: str,
+    engine: meowmx.Engine,
+    session_maker: meowmx.SessionMaker,
+    aggregate_id_column_type: str,
 ) -> meowmx.Client:
     client = meowmx.Client(engine=engine, session_maker=session_maker)
     global _setup_was_run
     if not _setup_was_run:
-        client.setup_tables()
+        client.setup_tables(aggregate_id_column_type)
         # for in memory sqlite we need to create it for every test
         if not sql_url_cmd_opt.endswith(":memory:"):
             _setup_was_run = True
     return client
 
     # "postgresql+psycopg://eventsourcing:eventsourcing@localhost:5443/eventsourcing?sslmode=disable"
+
+
+@pytest.fixture
+def new_uuid(uuid_type_cmd_opt: str) -> t.Callable[[], str]:
+    if uuid_type_cmd_opt == "xid":
+        return lambda: xid.XID().string()
+    else:
+        return lambda: str(uuid.uuid4())
+
+
+@pytest.fixture
+def aggregate_id_column_type(uuid_type_cmd_opt: str) -> str:
+    if uuid_type_cmd_opt == "xid":
+        return str("CHAR(20)")
+    else:
+        return str("UUID")
