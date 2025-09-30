@@ -7,14 +7,14 @@ from sqlalchemy.orm import Session
 @dataclass
 class NewEvent:
     event_type: str
-    json: t.Dict[str, t.Any]
+    json: str
 
 
 @dataclass
 class NewEventRow:
     aggregate_id: str
     event_type: str
-    json: t.Dict[str, t.Any]
+    json: str
     version: int
 
 
@@ -24,7 +24,7 @@ class RecordedEvent:
     aggregate_id: str
     id: int
     event_type: str
-    json: t.Dict[str, t.Any]
+    json: str
     tx_id: int
     version: int
 

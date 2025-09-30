@@ -1,4 +1,5 @@
 import argparse
+import json
 import random
 import time
 import typing as t
@@ -89,10 +90,12 @@ def main() -> None:
         events = [
             meowmx.NewEvent(
                 event_type=event_type,
-                json={
-                    "version": version,
-                    "random_slug": _generate_slug(),
-                },
+                json=json.dumps(
+                    {
+                        "version": version,
+                        "random_slug": _generate_slug(),
+                    }
+                ),
             )
         ]
         meow.save_events(args.aggregate_type, aggregate_id, events, version)

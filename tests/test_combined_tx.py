@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import typing as t
 
 import coolname  # type: ignore
@@ -52,10 +53,12 @@ def test_combined_read_model(
         events = [
             meowmx.NewEvent(
                 event_type="PotatoCreated",
-                json={
-                    "description": description,
-                    "time": datetime.now().isoformat(),
-                },
+                json=json.dumps(
+                    {
+                        "description": description,
+                        "time": datetime.now().isoformat(),
+                    }
+                ),
             ),
         ]
 
@@ -148,10 +151,12 @@ def test_combined_event_writes(
                 events=[
                     meowmx.NewEvent(
                         event_type="TreeCreated",
-                        json={
-                            "flower_id": flower_id,
-                            "time": datetime.now().isoformat(),
-                        },
+                        json=json.dumps(
+                            {
+                                "flower_id": flower_id,
+                                "time": datetime.now().isoformat(),
+                            }
+                        ),
                     ),
                 ],
             )
@@ -167,10 +172,12 @@ def test_combined_event_writes(
                 events=[
                     meowmx.NewEvent(
                         event_type="TreeCreated",
-                        json={
-                            "tree_id": tree_id,
-                            "time": datetime.now().isoformat(),
-                        },
+                        json=json.dumps(
+                            {
+                                "tree_id": tree_id,
+                                "time": datetime.now().isoformat(),
+                            }
+                        ),
                     ),
                 ],
             )

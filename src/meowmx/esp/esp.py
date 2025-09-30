@@ -1,4 +1,3 @@
-import json
 import textwrap
 import typing as t
 from sqlalchemy import Engine, text, bindparam, Integer, Text, String
@@ -35,7 +34,7 @@ class Esp:
         """
         query = textwrap.dedent("""
         INSERT INTO ES_EVENT (transaction_id, aggregate_id, version, event_type, json_data)
-            VALUES(pg_current_xact_id(), :aggregate_id, :version, :event_type, CAST(:json_obj AS JSON))
+            VALUES(pg_current_xact_id(), :aggregate_id, :version, :event_type, CAST(:json_data AS JSON))
             RETURNING id, transaction_id, event_type, json_data
         """)
         row = session.execute(
@@ -44,7 +43,7 @@ class Esp:
                 "aggregate_id": event.aggregate_id,
                 "version": event.version,
                 "event_type": event.event_type,
-                "json_obj": json.dumps(event.json),
+                "json_data": event.json,
             },
         ).fetchone()
         if row is None:
@@ -183,7 +182,7 @@ class Esp:
                     e.transaction_id::text AS tx_id,
                     e.aggregate_id,                    
                     e.event_type,
-                    e.json_data,
+                    e.json_data::text as json_data,
                     e.version
                 FROM es_event e
                 JOIN es_aggregate a ON a.ID = e.aggregate_id
@@ -245,7 +244,7 @@ class Esp:
                     e.id,
                     e.transaction_id::text AS tx_id,
                     e.event_type,
-                    e.json_data,
+                    e.json_data::text as json_data,
                     e.version
                 FROM es_event e
                 JOIN es_aggregate a ON a.ID = e.aggregate_id
@@ -305,7 +304,7 @@ class Esp:
                     e.id,
                     e.transaction_id::text AS tx_id,
                     e.event_type,
-                    e.json_data,
+                    e.json_data::text as json_data,
                     e.version,
                     e.aggregate_id
                 FROM es_event e

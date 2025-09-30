@@ -1,3 +1,4 @@
+import json
 import random
 import threading
 import time
@@ -67,10 +68,12 @@ class AggregateWriter:
         events = [
             meowmx.NewEvent(
                 event_type=event_type,
-                json={
-                    "version": version,
-                    "random_slug": _generate_slug(),
-                },
+                json=json.dumps(
+                    {
+                        "version": version,
+                        "random_slug": _generate_slug(),
+                    }
+                ),
             )
         ]
         print(f" -> writing {self._aggregate_type} - {aggregate_id} - {version}...")

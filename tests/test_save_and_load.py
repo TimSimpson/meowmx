@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import typing as t
 from unittest.mock import ANY
 
@@ -20,25 +21,32 @@ def test_save_and_load_events(
     events = [
         meowmx.NewEvent(
             event_type="MeowMxTestAggregateCreated",
-            json={
-                "time": datetime.now().isoformat(),
-            },
+            json=json.dumps(
+                {
+                    "time": datetime.now().isoformat(),
+                }
+            ),
         ),
         meowmx.NewEvent(
             event_type="MeowMxTestAggregateOrderRecieved",
-            json={
-                "order_no": 52328,
-                "time": datetime.now().isoformat(),
-            },
+            json=json.dumps(
+                {
+                    "order_no": 52328,
+                    "time": datetime.now().isoformat(),
+                }
+            ),
         ),
         meowmx.NewEvent(
             event_type="MeowMxTestAggregateDeleted",
-            json={
-                "time": datetime.now().isoformat(),
-            },
+            json=json.dumps(
+                {
+                    "time": datetime.now().isoformat(),
+                }
+            ),
         ),
     ]
     recorded_events = meow.save_events("meowmx-test", aggregate_id, events, version=0)
+    actual_times = [json.loads(event.json)["time"] for event in recorded_events]
 
     assert recorded_events == [
         meowmx.RecordedEvent(
@@ -46,9 +54,11 @@ def test_save_and_load_events(
             aggregate_id=aggregate_id,
             event_type="MeowMxTestAggregateCreated",
             id=ANY,
-            json={
-                "time": ANY,
-            },
+            json=json.dumps(
+                {
+                    "time": actual_times[0],
+                }
+            ),
             tx_id=ANY,
             version=0,
         ),
@@ -57,10 +67,12 @@ def test_save_and_load_events(
             aggregate_id=aggregate_id,
             event_type="MeowMxTestAggregateOrderRecieved",
             id=ANY,
-            json={
-                "order_no": 52328,
-                "time": ANY,
-            },
+            json=json.dumps(
+                {
+                    "order_no": 52328,
+                    "time": actual_times[1],
+                }
+            ),
             tx_id=ANY,
             version=1,
         ),
@@ -69,9 +81,11 @@ def test_save_and_load_events(
             aggregate_id=aggregate_id,
             event_type="MeowMxTestAggregateDeleted",
             id=ANY,
-            json={
-                "time": ANY,
-            },
+            json=json.dumps(
+                {
+                    "time": actual_times[2],
+                }
+            ),
             tx_id=ANY,
             version=2,
         ),
@@ -87,21 +101,27 @@ def test_concurrent_save_check(
     events = [
         meowmx.NewEvent(
             event_type="MeowMxTestAggregateCreated",
-            json={
-                "time": datetime.now().isoformat(),
-            },
+            json=json.dumps(
+                {
+                    "time": datetime.now().isoformat(),
+                }
+            ),
         ),
     ]
     recorded_events = meow.save_events("meowmx-test", aggregate_id, events, version=0)
+    event_time_1 = json.loads(recorded_events[0].json)["time"]
+
     assert recorded_events == [
         meowmx.RecordedEvent(
             aggregate_type=aggregate_type,
             aggregate_id=aggregate_id,
             event_type="MeowMxTestAggregateCreated",
             id=ANY,
-            json={
-                "time": ANY,
-            },
+            json=json.dumps(
+                {
+                    "time": event_time_1,
+                }
+            ),
             tx_id=ANY,
             version=0,
         )
@@ -113,16 +133,19 @@ def test_concurrent_save_check(
     events2 = [
         meowmx.NewEvent(
             event_type="MeowMxTestAggregateOrderRecieved",
-            json={
-                "order_no": 52328,
-                "time": datetime.now().isoformat(),
-            },
+            json=json.dumps(
+                {
+                    "order_no": 52328,
+                    "time": datetime.now().isoformat(),
+                }
+            ),
         ),
     ]
 
     recorded_events_2 = meow.save_events(
         "meowmx-test", aggregate_id, events2, version=1
     )
+    event_time_2 = json.loads(recorded_events_2[0].json)["time"]
 
     assert recorded_events_2 == [
         meowmx.RecordedEvent(
@@ -130,10 +153,12 @@ def test_concurrent_save_check(
             aggregate_id=aggregate_id,
             event_type="MeowMxTestAggregateOrderRecieved",
             id=ANY,
-            json={
-                "order_no": 52328,
-                "time": ANY,
-            },
+            json=json.dumps(
+                {
+                    "order_no": 52328,
+                    "time": event_time_2,
+                }
+            ),
             tx_id=ANY,
             version=1,
         )
@@ -147,9 +172,11 @@ def test_concurrent_save_check(
             aggregate_id=aggregate_id,
             event_type="MeowMxTestAggregateCreated",
             id=ANY,
-            json={
-                "time": ANY,
-            },
+            json=json.dumps(
+                {
+                    "time": event_time_1,
+                }
+            ),
             tx_id=ANY,
             version=0,
         ),
@@ -158,10 +185,12 @@ def test_concurrent_save_check(
             aggregate_id=aggregate_id,
             event_type="MeowMxTestAggregateOrderRecieved",
             id=ANY,
-            json={
-                "order_no": 52328,
-                "time": ANY,
-            },
+            json=json.dumps(
+                {
+                    "order_no": 52328,
+                    "time": event_time_2,
+                }
+            ),
             tx_id=ANY,
             version=1,
         ),
