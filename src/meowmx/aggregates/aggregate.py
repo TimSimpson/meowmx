@@ -19,7 +19,10 @@ class SavableAggregate(t.Protocol):
         """Used for the aggreate ID row."""
         ...
 
-    aggregate_type: str  # String for the aggregate_type row
+    @property
+    def aggregate_type(self) -> str:
+        """String for the aggregate_type row."""
+        ...
 
     def collect_pending_events(self) -> pending.PendingEvents:
         """Grabs evens emitted by the aggregate but not yet saved."""
