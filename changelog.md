@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [0.1.2] - 2025-09-30
 
 ### Added
 
@@ -8,7 +8,7 @@
 - Changed the type of event "json_data" to the string representation of the underlying data which users must load themselves.
 - Added abiity to save and load aggregate types directly, and an EventBuffer class to make it easier to build these types.
 
-## [0.1.0] - 2025-09-26
+## [0.1.1] - 2025-09-26
 
 ### Added
 
