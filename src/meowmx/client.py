@@ -3,6 +3,7 @@ import threading
 import time
 import typing as t
 
+from . import aggregates
 from .esp import esp
 from .backoff import BackoffCalc
 from . import common
@@ -18,6 +19,11 @@ class ExpectedVersionFailure(RuntimeError):
 
 
 DEFAULT_LIMIT = 512
+
+
+LoadableAggregateType = t.TypeVar(
+    "LoadableAggregateType", bound=aggregates.LoadableAggregate
+)
 
 
 class Client:
@@ -152,6 +158,32 @@ class Client:
                 to_version=to_version,
                 reverse=reverse,
             )
+
+    def load_aggregate(
+        self, aggregate_type: t.Type[LoadableAggregateType], id: str
+    ) -> LoadableAggregateType:
+        """Constructs an aggregate by loading it's events.
+
+        To support this, the type passed must define it's aggregate_type string
+        as a class field and have an __init__ which can accept `recorded_events`.
+        """
+        recorded_events = self.load(aggregate_type.aggregate_type, id, from_version=0)
+        return aggregate_type(recorded_events=recorded_events)
+
+    def save_aggregate(
+        self,
+        aggregate: aggregates.SavableAggregate,
+        session: t.Optional[common.Session] = None,
+    ) -> t.List[common.RecordedEvent]:
+        """Collects pending events and saves them to the aggregate type / ID."""
+        pending = aggregate.collect_pending_events()
+        return self.save_events(
+            aggregate.aggregate_type,
+            aggregate.aggregate_id,
+            events=pending.events,
+            version=pending.version,
+            session=session,
+        )
 
     def save_events(
         self,

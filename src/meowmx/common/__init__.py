@@ -1,5 +1,6 @@
 from .client import Client
 from .types import (
+    EventCompatible,
     EventHandler,
     NewEvent,
     NewEventRow,
@@ -14,6 +15,8 @@ __all__ = [
     "Client",
     "Engine",
     "EventHandler",
+    "EventCompatible",
+    "EventBuffer",
     "NewEvent",
     "NewEventRow",
     "RecordedEvent",

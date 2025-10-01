@@ -5,6 +5,8 @@
 ### Added
 
 - Added the ability to customize the type of the `id` column in the `es_aggregate` table when it's first created.
+- Changed the type of event "json_data" to the string representation of the underlying data which users must load themselves.
+- Added abiity to save and load aggregate types directly, and an EventBuffer class to make it easier to build these types.
 
 ## [0.1.0] - 2025-09-26
 

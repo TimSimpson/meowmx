@@ -4,29 +4,41 @@ import typing as t
 from sqlalchemy.orm import Session
 
 
+class EventCompatible(t.Protocol):
+    """Used by any type which can be converted into event data."""
+
+    @property
+    def event_type(self) -> str: ...
+
+    def to_event_data(self) -> str: ...
+
+
 @dataclass
 class NewEvent:
     event_type: str
     json: str
 
+    def to_event_data(self) -> str:
+        return self.json
+
 
 @dataclass
-class NewEventRow:
+class NewEventRow(NewEvent):
     aggregate_id: str
-    event_type: str
-    json: str
     version: int
 
+    def to_event_data(self) -> str:
+        return self.json
+
 
 @dataclass
-class RecordedEvent:
+class RecordedEvent(NewEventRow):
     aggregate_type: str
-    aggregate_id: str
     id: int
-    event_type: str
-    json: str
     tx_id: int
-    version: int
+
+    def to_event_data(self) -> str:
+        return self.json
 
 
 @dataclass
