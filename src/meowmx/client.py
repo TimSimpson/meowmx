@@ -144,14 +144,15 @@ class Client:
         to_version: t.Optional[int] = None,
         limit: t.Optional[int] = None,
         reverse: bool = False,
+        session: t.Optional[common.Session] = None,
     ) -> t.List[common.RecordedEvent]:
         limit = limit or DEFAULT_LIMIT
         if from_version is None and not reverse:
             from_version = 0
 
-        with self._session_maker() as session:
+        with self._start_session_if_desired(session) as session2:
             return self._esp.read_events_by_aggregate_id(
-                session,
+                session2,
                 aggregate_id=aggregate_id,
                 limit=limit,
                 from_version=from_version,
@@ -160,14 +161,19 @@ class Client:
             )
 
     def load_aggregate(
-        self, aggregate_type: t.Type[LoadableAggregateType], id: str
+        self,
+        aggregate_type: t.Type[LoadableAggregateType],
+        id: str,
+        session: t.Optional[common.Session] = None,
     ) -> LoadableAggregateType:
         """Constructs an aggregate by loading it's events.
 
         To support this, the type passed must define it's aggregate_type string
         as a class field and have an __init__ which can accept `recorded_events`.
         """
-        recorded_events = self.load(aggregate_type.aggregate_type, id, from_version=0)
+        recorded_events = self.load(
+            aggregate_type.aggregate_type, id, from_version=0, session=session
+        )
         return aggregate_type(recorded_events=recorded_events)
 
     def save_aggregate(
