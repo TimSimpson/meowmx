@@ -19,7 +19,7 @@ class Base(DeclarativeBase):
 
 
 class EsAggregate(Base):
-    __tablename__ = "es_aggregate"
+    __tablename__ = "es_aggregates"
 
     id = mapped_column(CHAR(64), primary_key=True)
     version = mapped_column(Integer, nullable=False)
@@ -29,7 +29,7 @@ class EsAggregate(Base):
 
 
 class EsEvent(Base):
-    __tablename__ = "es_event"
+    __tablename__ = "es_events"
 
     id = mapped_column(
         Integer,
@@ -59,7 +59,7 @@ class EsEvent(Base):
 
 
 class EsAggregateSnapshot(Base):
-    __tablename__ = "es_aggregate_snapshot"
+    __tablename__ = "es_aggregate_snapshots"
 
     aggregate_id = mapped_column(
         CHAR(64),
@@ -77,7 +77,7 @@ class EsAggregateSnapshot(Base):
 
 
 class EsEventSubscription(Base):
-    __tablename__ = "es_event_subscription"
+    __tablename__ = "es_event_subscriptions"
 
     subscription_name = mapped_column(Text, primary_key=True)
     last_transaction_id = mapped_column(BigInteger, nullable=False)

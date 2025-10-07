@@ -33,7 +33,7 @@ class Esp:
         The aggregate type is assumed to be known by the caller.
         """
         query = textwrap.dedent("""
-        INSERT INTO ES_EVENT (transaction_id, aggregate_id, version, event_type, json_data)
+        INSERT INTO es_events (transaction_id, aggregate_id, version, event_type, json_data)
             VALUES(pg_current_xact_id(), :aggregate_id, :version, :event_type, CAST(:json_data AS JSON))
             RETURNING id, transaction_id, event_type, json_data
         """)
@@ -63,7 +63,7 @@ class Esp:
     ) -> None:
         """Inserts the aggregate type into the table"""
         query = textwrap.dedent("""
-            INSERT INTO ES_AGGREGATE (ID, VERSION, AGGREGATE_TYPE)
+            INSERT INTO es_aggregates (id, version, aggregate_type)
                 VALUES (:aggregate_id, -1, :aggregate_type)
                 ON CONFLICT DO NOTHING
             """)
@@ -77,10 +77,10 @@ class Esp:
     ) -> None:
         query = textwrap.dedent(
             """
-                INSERT INTO ES_EVENT_SUBSCRIPTION (
-                    SUBSCRIPTION_NAME,
-                    LAST_TRANSACTION_ID,
-                    LAST_EVENT_ID
+                INSERT INTO es_event_subscriptions (
+                    subscription_name,
+                    last_transaction_id,
+                    last_event_id
                 )
                 VALUES (
                     :subscription_name,
@@ -104,10 +104,10 @@ class Esp:
     ) -> bool:
         query = textwrap.dedent(
             """
-                UPDATE ES_AGGREGATE
-                SET VERSION = :new_version
+                UPDATE es_aggregates
+                SET version = :new_version
                 WHERE ID = :aggregate_id
-                AND VERSION = :expected_version
+                AND version = :expected_version
                 """
         )
         result = session.execute(
@@ -126,7 +126,7 @@ class Esp:
         """Inserts the aggregate type into the table"""
         query = textwrap.dedent("""
             SELECT version
-                FROM   es_aggregate
+                FROM   es_aggregates
                 WHERE  id = :aggregate_id            
             """)
         return session.execute(
@@ -140,10 +140,10 @@ class Esp:
         query = textwrap.dedent(
             """
             SELECT
-                LAST_TRANSACTION_ID::text AS last_transaction_id,
-                LAST_EVENT_ID AS last_event_id
-            FROM ES_EVENT_SUBSCRIPTION
-            WHERE SUBSCRIPTION_NAME = :subscription_name
+                last_transaction_id::text AS last_transaction_id,
+                last_event_id AS last_event_id
+            FROM es_event_subscriptions
+            WHERE subscription_name = :subscription_name
             FOR UPDATE SKIP LOCKED
             """
         )
@@ -184,8 +184,8 @@ class Esp:
                     e.event_type,
                     e.json_data::text as json_data,
                     e.version
-                FROM es_event e
-                JOIN es_aggregate a ON a.ID = e.aggregate_id
+                FROM es_events e
+                JOIN es_aggregates a ON a.ID = e.aggregate_id
                 WHERE (:from_tx_id IS NULL OR e.transaction_id > CAST(:from_tx_id AS xid8))
                 AND (:to_tx_id IS NULL OR e.transaction_id <= CAST(:to_tx_id AS xid8))
                 ORDER BY transaction_id {order}
@@ -246,8 +246,8 @@ class Esp:
                     e.event_type,
                     e.json_data::text as json_data,
                     e.version
-                FROM es_event e
-                JOIN es_aggregate a ON a.ID = e.aggregate_id
+                FROM es_events e
+                JOIN es_aggregates a ON a.ID = e.aggregate_id
                 WHERE aggregate_id = :aggregate_id
                 AND (:from_version IS NULL OR e.version >= :from_version)
                 AND (:to_version IS NULL OR e.version < :to_version)
@@ -307,8 +307,8 @@ class Esp:
                     e.json_data::text as json_data,
                     e.version,
                     e.aggregate_id
-                FROM es_event e
-                JOIN es_aggregate a ON a.ID = e.aggregate_id
+                FROM es_events e
+                JOIN es_aggregates a ON a.ID = e.aggregate_id
                 WHERE a.aggregate_type = :aggregate_type
                 AND (e.transaction_id, e.ID) >
                         (CAST(:last_processed_tx_id AS xid8), :last_processed_event_id)
@@ -351,10 +351,10 @@ class Esp:
         """Updates the subscription. Does not commit the session."""
         query = textwrap.dedent(
             """
-            UPDATE ES_EVENT_SUBSCRIPTION
-            SET LAST_TRANSACTION_ID = CAST(:last_tx_id AS xid8),
-                LAST_EVENT_ID       = :last_event_id
-            WHERE SUBSCRIPTION_NAME = :subscription_name
+            UPDATE es_event_subscriptions
+            SET last_transaction_id = CAST(:last_tx_id AS xid8),
+                last_event_id       = :last_event_id
+            WHERE subscription_name = :subscription_name
             """
         )
         stmt = text(query).bindparams(
