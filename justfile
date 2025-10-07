@@ -31,7 +31,7 @@ test:
     uv run -- pytest -vv --sql-type sqlite --sql-url 'sqlite:///target/sqlite.db'
 
 test-psql:
-    uv run -- pytest -vv --sql-type sqlite --sql-url 'postgresql+psycopg://eventsourcing:eventsourcing@localhost:5443/eventsourcing?sslmode=disable'
+    uv run -- pytest -vv --sql-type sqlite --sql-url 'postgresql+psycopg://eventsourcing:eventsourcing@localhost:5443/eventsourcing?sslmode=disable' -vvv
 
 test-psql-2:
     uv run -- pytest -vv --sql-type sqlite --sql-url 'postgresql+psycopg://meowmx:meowmx@localhost:5445/meowmx?sslmode=disable' --uuid-type xid --iterations 1

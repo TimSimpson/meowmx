@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.3] - 2025-10-06
+
+- Renamed `load` and `load_all` to `load_events` and `load_all_events`.
+- Added code to load_events and load_aggregate to accept a session.
+
 ## [0.1.2] - 2025-09-30
 
 ### Added

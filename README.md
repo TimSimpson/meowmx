@@ -24,7 +24,7 @@ The thing is quite often the persisted data should be the event itself. For inst
 
 To make a gross simplification event-sourcing just says hey maybe all those events _are_ the persisted state; just load them all to figure out what the current situation is, make an update to the same set of events, and as a cherry on top use optimistic concurrency so the update fails if we find some other system updated our set of events between the time we read them just know and when we went to write them, in which case we'll cancle our write, reload all the events and try this logic again.
 
-There's also the notion of aggregates, which are basically objects that can be constructed by reading a set of events. In my experience that kind of "helper" code is extremely easy to write but obscures the basic utility of event sourcing libraries like this one. The right way to construct it is also fairly opinionated. So for now this project has no "aggregate" code. 
+There's also the notion of aggregates, which are basically objects that can be constructed by reading a set of events. In my experience that kind of "helper" code is extremely easy to write but obscures the basic utility of event sourcing libraries like this one. This project offers a helper to save and load aggregates using a simple protocol to get the pending set of events from any object. For details on this see [this test](tests/test_aggregate.py).
 
 ## Notes on SqlAlchemy
 
@@ -157,8 +157,3 @@ just test-psql
 just examples read-events # view all events written by the tests
 just examples # see examples
 ```
-
-## TODO
-
-[ ] don't force `version` on NewEvent, it's a headache
-[ ] Allow for other aggregate IDs types
