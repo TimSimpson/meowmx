@@ -132,7 +132,9 @@ def test_save_and_load_events_with_session(
                 "meowmx-test", aggregate_id, events, version=0, session=session
             )
 
-            recorded_events = meow.load("meowmx-test", aggregate_id, session=session)
+            recorded_events = meow.load_events(
+                "meowmx-test", aggregate_id, session=session
+            )
 
     assert len(recorded_events) == 3
     actual_times = [json.loads(event.json)["time"] for event in recorded_events]
@@ -253,7 +255,7 @@ def test_concurrent_save_check(
         )
     ]
 
-    recorded_events_from_load = meow.load("meowmx-test", aggregate_id)
+    recorded_events_from_load = meow.load_events("meowmx-test", aggregate_id)
 
     assert recorded_events_from_load == [
         meowmx.RecordedEvent(

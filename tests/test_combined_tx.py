@@ -86,7 +86,7 @@ def test_combined_read_model(
         raise_error=False,
     )
 
-    potato_events = meow.load(aggregate_type, potato_id, from_version=0)
+    potato_events = meow.load_events(aggregate_type, potato_id, from_version=0)
     # assert 1 == len(potato_events)
     potato_rm = load_potato()
     assert potato_rm is not None
@@ -105,7 +105,7 @@ def test_combined_read_model(
             raise_error=True,
         )
 
-    potato_events = meow.load(aggregate_type, potato_id, from_version=0)
+    potato_events = meow.load_events(aggregate_type, potato_id, from_version=0)
     assert 1 == len(potato_events)
     potato_rm = load_potato()
     assert potato_rm is not None
@@ -122,7 +122,7 @@ def test_combined_read_model(
         raise_error=False,
     )
 
-    potato_events = meow.load(aggregate_type, potato_id, from_version=0)
+    potato_events = meow.load_events(aggregate_type, potato_id, from_version=0)
     assert 2 == len(potato_events)
     potato_rm = load_potato()
     assert potato_rm is not None
@@ -161,7 +161,7 @@ def test_combined_event_writes(
                 ],
             )
 
-            tree_events = meow.load(aggregate_type_1, tree_id, from_version=0)
+            tree_events = meow.load_events(aggregate_type_1, tree_id, from_version=0)
             assert 0 == len(tree_events)
 
             meow.save_events(
@@ -182,6 +182,6 @@ def test_combined_event_writes(
                 ],
             )
 
-    tree_events = meow.load(aggregate_type_1, tree_id, from_version=0)
+    tree_events = meow.load_events(aggregate_type_1, tree_id, from_version=0)
 
     assert 1 == len(tree_events)

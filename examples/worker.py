@@ -28,7 +28,7 @@ def main() -> None:
     count = 0
 
     def handler(session: meowmx.Session, event: meowmx.RecordedEvent) -> None:
-        existing_events = meow.load(event.aggregate_type, event.aggregate_id)
+        existing_events = meow.load_events(event.aggregate_type, event.aggregate_id)
         end_time = time.perf_counter()
         nonlocal count
         count += 1

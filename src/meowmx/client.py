@@ -120,7 +120,7 @@ class Client:
         else:
             return self._session_maker()
 
-    def load_all(
+    def load_all_events(
         self,
         from_tx_id: t.Optional[int],
         to_tx_id: t.Optional[int],
@@ -136,7 +136,7 @@ class Client:
                 to_tx_id=to_tx_id,
             )
 
-    def load(
+    def load_events(
         self,
         aggregate_type: str,
         aggregate_id: str,
@@ -171,7 +171,7 @@ class Client:
         To support this, the type passed must define it's aggregate_type string
         as a class field and have an __init__ which can accept `recorded_events`.
         """
-        recorded_events = self.load(
+        recorded_events = self.load_events(
             aggregate_type.aggregate_type, id, from_version=0, session=session
         )
         return aggregate_type(recorded_events=recorded_events)

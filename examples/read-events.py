@@ -63,7 +63,7 @@ def main() -> None:
     backoff = BackoffCalc(1, 5)
     while True:
         if id_mode:
-            events = meow.load(
+            events = meow.load_events(
                 aggregate_id=args.aggregate_id,
                 aggregate_type=args.aggregate_type,
                 from_version=args.from_var,
@@ -71,7 +71,7 @@ def main() -> None:
                 limit=args.limit,
             )
         else:
-            events = meow.load_all(
+            events = meow.load_all_events(
                 from_tx_id=args.from_var, to_tx_id=args.to, limit=args.limit
             )
 
