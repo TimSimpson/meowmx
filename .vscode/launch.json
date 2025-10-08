@@ -21,7 +21,7 @@
             "--sql-type", 
             "sqlite",
             "--sql-url",
-            "postgresql+psycopg://eventsourcing:eventsourcing@localhost:5443/eventsourcing?sslmode=disable",
+            "postgresql+psycopg://meowmx:meowmx@localhost:5445/meowmx?sslmode=disable",
             "${file}"
         ],
         "console": "integratedTerminal",

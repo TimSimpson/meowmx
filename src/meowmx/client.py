@@ -236,12 +236,15 @@ class Client:
                     for index, element in enumerate(events)
                 ]
                 expected_version = version - 1
+                next_version = expected_version + len(events)
 
                 self._esp.create_aggregate_if_absent(
-                    session_2, aggregate_type, aggregate_id
+                    session_2,
+                    aggregate_type,
+                    aggregate_id,
                 )
                 if not self._esp.check_and_update_aggregate_version(
-                    session_2, aggregate_id, expected_version, version
+                    session_2, aggregate_id, expected_version, next_version
                 ):
                     raise ExpectedVersionFailure(
                         f"{aggregate_type} - {aggregate_id} did not match expected_version of {expected_version}"
