@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.1] - 2025-10-08
+
+- Fixes SqlAlchemy / Sqlite table definition.
+
 ## [0.2.0] - 2025-10-08
 
 - Renamed all of the tables to plural versions of the nouns. So `es_event` became `es_events`, `es_aggregate` turned into `es_aggregates`, etc. It's absolutely bike-shedding nonsense but it just looked too out of place next to all the tables I work with, though I readily concede that because the author of [postgresql-event-sourcing](https://github.com/eugene-khyst/postgresql-event-sourcing) did it the other way I might be the one who is wrong here.

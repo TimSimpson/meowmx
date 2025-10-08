@@ -39,7 +39,7 @@ class EsEvent(Base):
     transaction_id = mapped_column(BigInteger, nullable=False, server_default=text("0"))
     aggregate_id = mapped_column(
         CHAR(64),
-        ForeignKey("es_aggregate.id", ondelete="CASCADE"),
+        ForeignKey("es_aggregates.id", ondelete="CASCADE"),
         nullable=False,
     )
     version = mapped_column(Integer, nullable=False)
@@ -63,7 +63,7 @@ class EsAggregateSnapshot(Base):
 
     aggregate_id = mapped_column(
         CHAR(64),
-        ForeignKey("es_aggregate.id", ondelete="CASCADE"),
+        ForeignKey("es_aggregates.id", ondelete="CASCADE"),
         nullable=False,
     )
     version = Column(Integer, nullable=False)
