@@ -224,6 +224,8 @@ class Client:
                     )
                     if version is None:
                         version = 0
+                    else:
+                        version += 1
 
                 next_expected_version: int = version
                 new_event_rows: t.List[common.NewEventRow] = [

@@ -224,6 +224,45 @@ def test_save_and_load_events_with_session(
     )
     assert expected_events == recorded_events_2
 
+    with session_maker() as session:
+        with session.begin():
+            meow.save_events(
+                "meowmx-test",
+                aggregate_id,
+                [
+                    meowmx.NewEvent(
+                        event_type="MeowMxTestAggregateResurrectedAgain",
+                        json=json.dumps(
+                            {
+                                "time": new_time,
+                            }
+                        ),
+                    ),
+                ],
+                version=None,
+                session=session,
+            )
+            recorded_events_3 = meow.load_events(
+                "meowmx-test", aggregate_id, session=session
+            )
+
+    expected_events.append(
+        meowmx.RecordedEvent(
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id,
+            event_type="MeowMxTestAggregateResurrectedAgain",
+            id=ANY,
+            json=json.dumps(
+                {
+                    "time": new_time,
+                }
+            ),
+            tx_id=ANY,
+            version=4,
+        ),
+    )
+    assert expected_events == recorded_events_3
+
 
 def test_concurrent_save_check(
     meow: meowmx.Client, new_uuid: t.Callable[[], str]
