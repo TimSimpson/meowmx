@@ -75,11 +75,12 @@ def main() -> None:
                 args.aggregate_type, aggregate_id, 0, limit=36500
             )
             version = aggregate_versions[aggregate_id]
+            version += 1
             if version != len(existing_events):
                 print(f"ERROR! version we expected={version}")
                 print(f"                but we got={len(existing_events)}")
+                print(f"       for aggregate id={aggregate_id}")
                 raise RuntimeError("bad version")
-            version += 1
 
         if len(event_types) > 1:
             random_index = int(random.random() * (len(event_types) - 1))

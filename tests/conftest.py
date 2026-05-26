@@ -86,6 +86,9 @@ def new_uuid(uuid_type_cmd_opt: str) -> t.Callable[[], str]:
 
 @pytest.fixture
 def aggregate_id_column_type(uuid_type_cmd_opt: str) -> str:
+    if uuid_type_cmd_opt.startswith("char"):
+        length = int(uuid_type_cmd_opt[4:].strip())
+        return str(f"CHAR({length})")
     if uuid_type_cmd_opt == "xid":
         return str("CHAR(20)")
     else:
