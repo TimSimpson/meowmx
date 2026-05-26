@@ -7,6 +7,7 @@ from .types import (
     RecordedEvent,
     SessionMaker,
     SubCheckpoint,
+    TxId,
 )
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session, SessionTransaction
@@ -25,4 +26,5 @@ __all__ = [
     "SessionTransaction",
     "SessionTx",
     "SubCheckpoint",
+    "TxId",
 ]

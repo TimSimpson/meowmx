@@ -5,6 +5,7 @@ from .types import (
     RecordedEvent,
     Session,
     SubCheckpoint,
+    TxId,
 )
 
 
@@ -70,7 +71,7 @@ class Client(t.Protocol):
         self,
         session: Session,
         aggregate_type: str,
-        last_processed_tx_id: int,
+        last_processed_tx_id: TxId,
         last_processed_event_id: int,
     ) -> t.List[RecordedEvent]: ...
 

@@ -130,7 +130,7 @@ class Client:
         if row is None:
             return None
         return common.SubCheckpoint(
-            last_tx_id=row.last_transaction_id, last_event_id=row.last_event_id
+            last_tx_id=str(row.last_transaction_id), last_event_id=row.last_event_id
         )
 
     def get_aggregate_version(
@@ -259,9 +259,10 @@ class Client:
         self,
         session: t.Any,
         aggregate_type: str,
-        last_processed_tx_id: int,
+        last_processed_tx_id: common.TxId,
         last_processed_event_id: int,
     ) -> t.List[common.RecordedEvent]:
+        last_processed_tx_id_as_int = int(last_processed_tx_id)
         stmt = (
             sqlalchemy.select(
                 tables.EsEvent.id,
@@ -279,7 +280,7 @@ class Client:
                 tables.EsAggregate.aggregate_type == sqlalchemy.literal(aggregate_type),
                 sqlalchemy.tuple_(tables.EsEvent.transaction_id, tables.EsEvent.id)
                 > sqlalchemy.tuple_(
-                    sqlalchemy.literal(last_processed_tx_id),
+                    sqlalchemy.literal(last_processed_tx_id_as_int),
                     sqlalchemy.literal(last_processed_event_id),
                 ),
             )

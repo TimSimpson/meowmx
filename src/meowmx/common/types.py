@@ -41,9 +41,16 @@ class RecordedEvent(NewEventRow):
         return self.json
 
 
+# this is `str` because the sql libraries think Python's int could mean
+# "smallint", which can't be cast to an XID8 which is used for the transaction
+# ID. The XID8 results are cast to text in the SQL queries, which becomes a
+# Python `str` so no precision is lost.
+TxId: t.TypeAlias = str
+
+
 @dataclass
 class SubCheckpoint:
-    last_tx_id: int
+    last_tx_id: TxId
     last_event_id: int
 
 

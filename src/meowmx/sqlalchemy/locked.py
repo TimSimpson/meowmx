@@ -108,7 +108,7 @@ class MutexLockedClient:
         self,
         session: t.Any,
         aggregate_type: str,
-        last_processed_tx_id: int,
+        last_processed_tx_id: common.TxId,
         last_processed_event_id: int,
     ) -> t.List[common.RecordedEvent]:
         with self._mutex:
