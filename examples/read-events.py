@@ -77,8 +77,9 @@ def main() -> None:
 
         indent = 4 if args.pretty_json else None
         for event in events:
+            data = json.loads(event.json)
             print(
-                f"{event.id} (tx {event.tx_id}) : {event.aggregate_type} / {event.aggregate_id} [{event.version}] {event.event_type} : {json.dumps(event.json, indent=indent)}"
+                f"{event.id} (tx {event.tx_id}) : {event.aggregate_type} / {event.aggregate_id} [{event.version}] {event.event_type} : {json.dumps(data, indent=indent)}"
             )
 
         if not args.tail:
