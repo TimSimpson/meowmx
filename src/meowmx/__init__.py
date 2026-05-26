@@ -1,5 +1,6 @@
 from .client import Client, ExpectedVersionFailure
 from .common import (
+    All,
     Engine,
     EventCompatible,
     NewEvent,
@@ -10,7 +11,9 @@ from .common import (
 )
 from .aggregates import EventBuffer, PendingEvents
 
+
 __all__ = [
+    "All",
     "Client",
     "Engine",
     "EventBuffer",

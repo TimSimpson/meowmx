@@ -4,6 +4,12 @@ import typing as t
 from sqlalchemy.orm import Session
 
 
+class All:
+    """Requests that all aggregate types be considered in a `sub` query."""
+
+    pass
+
+
 class EventCompatible(t.Protocol):
     """Used by any type which can be converted into event data."""
 

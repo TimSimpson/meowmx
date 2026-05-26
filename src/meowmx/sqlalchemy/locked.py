@@ -107,13 +107,13 @@ class MutexLockedClient:
     def read_events_after_checkpoint(
         self,
         session: t.Any,
-        aggregate_type: str,
+        aggregate_types: str | list[str] | common.All,
         last_processed_tx_id: common.TxId,
         last_processed_event_id: int,
     ) -> t.List[common.RecordedEvent]:
         with self._mutex:
             return self._client.read_events_after_checkpoint(
-                session, aggregate_type, last_processed_tx_id, last_processed_event_id
+                session, aggregate_types, last_processed_tx_id, last_processed_event_id
             )
 
     def update_event_subscription(

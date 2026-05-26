@@ -1,5 +1,6 @@
 from .client import Client
 from .types import (
+    All,
     EventCompatible,
     EventHandler,
     NewEvent,
@@ -13,6 +14,7 @@ from sqlalchemy import Engine
 from sqlalchemy.orm import Session, SessionTransaction
 
 __all__ = [
+    "All",
     "Client",
     "Engine",
     "EventHandler",

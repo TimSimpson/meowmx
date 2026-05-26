@@ -294,42 +294,54 @@ class Esp:
     def read_events_after_checkpoint(
         self,
         session: t.Any,
-        aggregate_type: str,
+        aggregate_types: str | list[str] | common.All,
         last_processed_tx_id: common.TxId,
         last_processed_event_id: int,
     ) -> t.List[common.RecordedEvent]:
+        args = {
+            "last_processed_tx_id": last_processed_tx_id,
+            "last_processed_event_id": last_processed_event_id,
+        }
+        initial_where_clause: str
+        if isinstance(aggregate_types, common.All):
+            initial_where_clause = ""
+        elif isinstance(aggregate_types, str):
+            initial_where_clause = "a.aggregate_type = :aggregate_type AND"
+            args["aggregate_type"] = aggregate_types
+        else:
+            initial_where_clause = "a.aggregate_type = ANY(:aggregate_types) AND"
+            args["aggregate_types"] = aggregate_types
+
         query = textwrap.dedent(
-            """
+            f"""
                 SELECT
                     e.id,
                     e.transaction_id::text AS tx_id,
                     e.event_type,
                     e.json_data::text as json_data,
                     e.version,
-                    e.aggregate_id
+                    e.aggregate_id,
+                    a.aggregate_type
                 FROM es_events e
                 JOIN es_aggregates a ON a.ID = e.aggregate_id
-                WHERE a.aggregate_type = :aggregate_type
-                AND (e.transaction_id, e.ID) >
-                        (CAST(:last_processed_tx_id AS xid8), :last_processed_event_id)
+                WHERE 
+                {initial_where_clause}
+                (e.transaction_id, e.ID) >
+                    (CAST(:last_processed_tx_id AS xid8), :last_processed_event_id)
                 AND e.transaction_id < pg_snapshot_xmin(pg_current_snapshot())
                 ORDER BY e.transaction_id ASC, e.ID ASC
                 """
         )
         result = session.execute(
             text(query),
-            {
-                "aggregate_type": aggregate_type,
-                "last_processed_tx_id": last_processed_tx_id,
-                "last_processed_event_id": last_processed_event_id,
-            },
+            args,
         )
         rows = result.fetchall()
         events: t.List[common.RecordedEvent] = []
         for row in rows:
             events.append(
                 common.RecordedEvent(
-                    aggregate_type=aggregate_type,
+                    aggregate_type=row[6],
                     aggregate_id=str(row[5]),
                     id=row[0],
                     tx_id=int(row[1]),

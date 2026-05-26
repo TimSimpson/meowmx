@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.0] - 2026-05-26
+
+- Updates the `meoxmx.Client` `sub` method. It is now possible to create a subscription based on multiple aggregate types or subscribe to all events.
+
 ## [0.2.2] - 2025-10-23
 
 - Fixes error where the proper version wasn't used when `version` was set to None.

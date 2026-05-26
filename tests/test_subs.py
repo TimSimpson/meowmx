@@ -91,10 +91,12 @@ class AggregateWriter:
 
 
 class Worker:
-    def __init__(self, sub_name: str, aggregate_type: str) -> None:
+    def __init__(
+        self, sub_name: str, aggregate_types: str | list[str] | meowmx.All
+    ) -> None:
         """Simulates a typical worker which subscribes to some aggregate type."""
         self._sub_name = sub_name
-        self._aggregate_type = aggregate_type
+        self._aggregate_types = aggregate_types
         self._events: t.Dict[int, meowmx.RecordedEvent] = {}
         self._replayed_events = 0
         self._seen_event_count = 0
@@ -113,6 +115,17 @@ class Worker:
         self, meow: meowmx.Client, stop_signal: threading.Event
     ) -> None:
         def handler(session: meowmx.Session, event: meowmx.RecordedEvent) -> None:
+            if isinstance(self._aggregate_types, str):
+                if event.aggregate_type != self._aggregate_types:
+                    raise AssertionError(
+                        "Received an aggregate type the worker isn't subscribed to"
+                    )
+            elif isinstance(self._aggregate_types, list):
+                if event.aggregate_type not in self._aggregate_types:
+                    raise AssertionError(
+                        "Received an aggregate type the worker isn't subscribed to"
+                    )
+
             if event.id in self._events:
                 # reminder: the goal is at least once delivery
                 self._replayed_events += 1
@@ -123,7 +136,7 @@ class Worker:
 
         meow.sub(
             self._sub_name,
-            self._aggregate_type,
+            aggregate_types=self._aggregate_types,
             batch_size=200,
             max_sleep_time=10,
             handler=handler,
@@ -132,7 +145,7 @@ class Worker:
 
 
 # @pytest.mark.timeout(30)
-def test_subscriptions(
+def test_parallel_subscriptions(
     meow: meowmx.Client,
     iterations_cmd_opt: t.Optional[int],
     new_uuid: t.Callable[[], str],
@@ -257,3 +270,117 @@ def test_subscriptions(
 
     assert worker_orders.seen_event_count == event_count
     assert len(missing) == 0
+
+
+def test_subscriptions_to_multiple_aggregate_types(
+    meow: meowmx.Client,
+    iterations_cmd_opt: t.Optional[int],
+    new_uuid: t.Callable[[], str],
+) -> None:
+    rname = _generate_slug()
+    aggregate_type_1 = f"meowmx-st-1-{rname}"
+    aggregate_type_2 = f"meowmx-st-2-{rname}"
+    aggregate_type_3 = f"meowmx-st-3-{rname}"
+    event_types = [
+        "MeoxMxStOrderCreated",
+        "MeoxMxStOrderShipped",
+        "MeoxMxStOrderLost",
+        "MeoxMxStOrderFulfilled",
+    ]
+    writer_1 = AggregateWriter(
+        aggregate_type_1, event_types, percent_new=25, max_length=85
+    )
+    writer_2 = AggregateWriter(
+        aggregate_type_2, event_types, percent_new=25, max_length=85
+    )
+    writer_3 = AggregateWriter(
+        aggregate_type_3, event_types, percent_new=25, max_length=85
+    )
+
+    stop_signal = threading.Event()
+
+    # set up three workers. One listens only to one aggregate, the next listens
+    # to the first and second, while the last listens to all three.
+    workers: list[Worker] = []
+    workers.append(Worker(f"meowmx-st-1-{rname}", aggregate_type_1))
+    workers.append(
+        Worker(f"meowmx-st-12-{rname}", [aggregate_type_1, aggregate_type_2])
+    )
+    workers.append(
+        Worker(
+            f"meowmx-st-123-{rname}",
+            [aggregate_type_1, aggregate_type_2, aggregate_type_3],
+        )
+    )
+    workers.append(Worker(f"meowmx-st-all-{rname}", meowmx.All()))
+
+    # start the workers, each in a different thread
+
+    errors_in_thread = None
+
+    def make_worker_func(worker: Worker) -> t.Callable:
+        def func() -> None:
+            try:
+                worker.start_subscription(meow, stop_signal)
+            except Exception as e:
+                print(f"ERROR IN THREAD: {e}")
+                nonlocal errors_in_thread
+                errors_in_thread = True
+                traceback.print_exc()
+
+        return func
+
+    threads: list[threading.Thread] = [
+        threading.Thread(target=make_worker_func(worker)) for worker in workers
+    ]
+    for th in threads:
+        th.start()
+
+    # Now write some number of events
+
+    max_count = 400
+    assert max_count % 4 == 0
+    if iterations_cmd_opt is not None:
+        max_count = iterations_cmd_opt
+
+    stop_at = [0, 0, 0, 0]
+    try:
+        event_count = max_count
+        for i in range(event_count):
+            writer_1.write_event(meow, new_uuid)
+            stop_at[0] += 1
+            stop_at[1] += 1
+            stop_at[2] += 1
+            stop_at[3] += 1
+            if i % 2 == 0:
+                writer_2.write_event(meow, new_uuid)
+                stop_at[1] += 1
+                stop_at[2] += 1
+                stop_at[3] += 1
+            if i % 4 == 0:
+                writer_3.write_event(meow, new_uuid)
+                stop_at[2] += 1
+                stop_at[3] += 1
+    except Exception as e:
+        print(f"ERROR IN MAIN THREAD: {e}")
+        traceback.print_exc()
+        errors_in_thread = True
+
+    # wait for the threads to be done processing them. This will hang
+    # if there's a bug!
+    if not errors_in_thread:
+        while any(
+            worker.seen_event_count < stop_at[index]
+            for index, worker in enumerate(workers)
+        ):
+            if errors_in_thread:
+                break
+            time.sleep(1)
+
+    # Signal the worker threads to stop
+    stop_signal.set()
+
+    for th in threads:
+        th.join()
+
+    assert not errors_in_thread

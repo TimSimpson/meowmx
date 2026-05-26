@@ -51,7 +51,7 @@ class Client:
     def _handle_subscription_events(
         self,
         subscription_name: str,
-        aggregate_type: str,
+        aggregate_types: str | list[str] | common.All,
         batch_size: int,
         handler: common.EventHandler,
     ) -> int:
@@ -75,7 +75,7 @@ class Client:
                 else:
                     events = self._esp.read_events_after_checkpoint(
                         session,
-                        aggregate_type,
+                        aggregate_types,
                         checkpoint.last_tx_id,
                         checkpoint.last_event_id,
                     )
@@ -262,8 +262,8 @@ class Client:
     def sub(
         self,
         subscription_name: str,
-        aggregate_type: str,
         handler: common.EventHandler,
+        aggregate_types: str | list[str] | common.All,
         batch_size: int = 10,
         max_sleep_time: int = 1,
         stop_signal: t.Optional[threading.Event] = None,
@@ -272,7 +272,7 @@ class Client:
         while stop_signal is None or not stop_signal.is_set():
             processed = self._handle_subscription_events(
                 subscription_name=subscription_name,
-                aggregate_type=aggregate_type,
+                aggregate_types=aggregate_types,
                 batch_size=batch_size,
                 handler=handler,
             )
@@ -280,3 +280,21 @@ class Client:
                 time.sleep(backoff.failure())
             else:
                 backoff.success()
+
+    def sub_all(
+        self,
+        subscription_name: str,
+        handler: common.EventHandler,
+        *,
+        batch_size: int = 10,
+        max_sleep_time: int = 1,
+        stop_signal: t.Optional[threading.Event] = None,
+    ) -> None:
+        self.sub(
+            subscription_name=subscription_name,
+            handler=handler,
+            aggregate_types=common.All(),
+            batch_size=batch_size,
+            max_sleep_time=max_sleep_time,
+            stop_signal=stop_signal,
+        )

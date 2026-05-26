@@ -258,11 +258,29 @@ class Client:
     def read_events_after_checkpoint(
         self,
         session: t.Any,
-        aggregate_type: str,
+        aggregate_types: str | list[str] | common.All,
         last_processed_tx_id: common.TxId,
         last_processed_event_id: int,
     ) -> t.List[common.RecordedEvent]:
         last_processed_tx_id_as_int = int(last_processed_tx_id)
+
+        where_clause = [
+            sqlalchemy.tuple_(tables.EsEvent.transaction_id, tables.EsEvent.id)
+            > sqlalchemy.tuple_(
+                sqlalchemy.literal(last_processed_tx_id_as_int),
+                sqlalchemy.literal(last_processed_event_id),
+            ),
+        ]
+        if isinstance(aggregate_types, str):
+            where_clause = [
+                tables.EsAggregate.aggregate_type
+                == sqlalchemy.literal(aggregate_types),
+            ] + where_clause
+        elif isinstance(aggregate_types, list):
+            where_clause = [
+                tables.EsAggregate.aggregate_type.in_(aggregate_types)
+            ] + where_clause
+
         stmt = (
             sqlalchemy.select(
                 tables.EsEvent.id,
@@ -271,26 +289,20 @@ class Client:
                 tables.EsEvent.json_data,
                 tables.EsEvent.version,
                 tables.EsEvent.aggregate_id,
+                tables.EsAggregate.aggregate_type,
             )
             .join(
                 tables.EsAggregate,
                 tables.EsAggregate.id == tables.EsEvent.aggregate_id,
             )
-            .where(
-                tables.EsAggregate.aggregate_type == sqlalchemy.literal(aggregate_type),
-                sqlalchemy.tuple_(tables.EsEvent.transaction_id, tables.EsEvent.id)
-                > sqlalchemy.tuple_(
-                    sqlalchemy.literal(last_processed_tx_id_as_int),
-                    sqlalchemy.literal(last_processed_event_id),
-                ),
-            )
+            .where(*where_clause)
             .order_by(tables.EsEvent.transaction_id.asc(), tables.EsEvent.id.asc())
         )
 
         rows = session.execute(stmt).fetchall()
         return [
             common.RecordedEvent(
-                aggregate_type=aggregate_type,
+                aggregate_type=row[6],
                 aggregate_id=row[5],
                 id=row[0],
                 tx_id=int(row[1]),

@@ -40,7 +40,7 @@ def main() -> None:
 
     meow.sub(
         args.sub_name,
-        args.aggregate_type,
+        aggregate_types=args.aggregate_type,
         batch_size=200,
         max_sleep_time=10,
         handler=handler,
