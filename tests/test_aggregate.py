@@ -18,7 +18,7 @@ class Aggregate:
     """
 
     def __init__(
-        self, recorded_events: t.Optional[t.List[meowmx.RecordedEvent]] = None
+        self, recorded_events: t.Optional[t.Sequence[meowmx.RecordedEvent]] = None
     ) -> None:
         self._current_state = "none"
         self._id = ""
@@ -27,7 +27,7 @@ class Aggregate:
         if recorded_events is not None:
             for event in recorded_events:
                 self.apply(event)
-            self._next_version = len(self._new_events)
+                self._next_version += 1
             self._new_events = []
 
     @property
@@ -64,7 +64,7 @@ def test_save_load_aggregate(
     new_id = new_uuid()
 
     agg.apply(meowmx.NewEvent(event_type="Start", json=f'{{"id": "{new_id}"}}'))
-    agg._current_state == "new"
+    assert agg._current_state == "new"
     recorded_events = meow.save_aggregate(agg)
     assert len(recorded_events) == 1
     assert recorded_events[0].json == f'{{"id": "{new_id}"}}'
@@ -84,14 +84,14 @@ def test_save_load_aggregate(
     # save the new instance
 
     agg2.apply(meowmx.NewEvent(event_type="Restart", json="{}"))
-    agg2._current_state == "reborn"
+    assert agg2._current_state == "reborn"
     recorded_events = meow.save_aggregate(agg2)
     assert len(recorded_events) == 1
 
     # try to save the old instance and get a concurrency error
 
     agg.apply(meowmx.NewEvent(event_type="Restart", json="{}"))
-    agg._current_state == "reborn"
+    assert agg._current_state == "reborn"
     with pytest.raises(meowmx.ExpectedVersionFailure):
         meow.save_aggregate(agg)
 
@@ -108,13 +108,13 @@ def test_save_load_aggregate_with_session(
         new_id = new_uuid()
 
         agg.apply(meowmx.NewEvent(event_type="Start", json=f'{{"id": "{new_id}"}}'))
-        agg._current_state == "new"
+        assert agg._current_state == "new"
         recorded_events = meow.save_aggregate(agg, session=session)
         assert len(recorded_events) == 1
         assert recorded_events[0].json == f'{{"id": "{new_id}"}}'
 
         agg.apply(meowmx.NewEvent(event_type="Finish", json="{}"))
-        agg._current_state == "old"
+        assert agg._current_state == "old"
         recorded_events = meow.save_aggregate(agg, session=session)
         assert len(recorded_events) == 1
 
@@ -128,13 +128,40 @@ def test_save_load_aggregate_with_session(
         # save the new instance
 
         agg2.apply(meowmx.NewEvent(event_type="Restart", json="{}"))
-        agg2._current_state == "reborn"
+        assert agg2._current_state == "reborn"
         recorded_events = meow.save_aggregate(agg2, session=session)
         assert len(recorded_events) == 1
 
         # try to save the old instance and get a concurrency error
 
         agg.apply(meowmx.NewEvent(event_type="Restart", json="{}"))
-        agg._current_state == "reborn"
+        assert agg._current_state == "reborn"
         with pytest.raises(meowmx.ExpectedVersionFailure):
             meow.save_aggregate(agg, session=session)
+
+
+def test_save_load_large_aggregate(
+    monkeypatch: pytest.MonkeyPatch,
+    session_maker: meowmx.SessionMaker,
+    meow: meowmx.Client,
+    new_uuid: t.Callable[[], str],
+) -> None:
+    monkeypatch.setattr(meowmx.client, "DEFAULT_LIMIT", 4)
+    with session_maker() as session:
+        agg = Aggregate()
+        recorded_events = meow.save_aggregate(agg, session=session)
+        assert len(recorded_events) == 0
+        new_id = new_uuid()
+
+        agg.apply(meowmx.NewEvent(event_type="Start", json=f'{{"id": "{new_id}"}}'))
+        expected_version = 1
+        for i in range(5):
+            agg.apply(meowmx.NewEvent(event_type="Finish", json="{}"))
+            agg.apply(meowmx.NewEvent(event_type="Restart", json="{}"))
+            expected_version += 2
+
+        meow.save_aggregate(agg, session=session)
+
+        agg2 = meow.load_aggregate(Aggregate, new_id, session=session)
+        assert agg2._next_version == expected_version
+        assert agg2._current_state == "reborn"

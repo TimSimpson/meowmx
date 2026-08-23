@@ -193,14 +193,11 @@ class Client:
         To support this, the type passed must define it's aggregate_type string
         as a class field and have an __init__ which can accept `recorded_events`.
         """
-        limit = limit or DEFAULT_LIMIT
-        # TODO: FIX BUG
-        recorded_events, _ = self.load_events(
+        recorded_events = self.stream_events(
             aggregate_type.aggregate_type,
             id,
             from_version=0,
             session=session,
-            limit=limit,
         )
         return aggregate_type(recorded_events=recorded_events)
 
@@ -291,7 +288,8 @@ class Client:
         self,
         from_tx_id: t.Optional[int],
         to_tx_id: t.Optional[int],
-        limit: t.Optional[int],
+        chunk_size: t.Optional[int] = None,
+        limit: t.Optional[int] = None,
         session: t.Optional[common.Session] = None,
     ) -> t.Iterator[common.RecordedEvent]:
         """Used to read _ALL_ events, regardless of aggregate ID or type.
@@ -300,19 +298,21 @@ class Client:
         events if necessary to manage an application, but not intended for
         general usage.
         """
+        count = 0
         with self._start_session_if_desired(session) as session:
             has_more = True
             while has_more:
                 rows, has_more = self._esp.read_all_events(
                     session,
-                    limit=limit or DEFAULT_LIMIT,
+                    limit=chunk_size or DEFAULT_LIMIT,
                     from_tx_id=from_tx_id,
                     to_tx_id=to_tx_id,
                 )
                 for row in rows:
                     yield row
-                if limit is not None:
-                    has_more = False
+                    count += 1
+                    if limit is not None and count >= limit:
+                        break
                 if has_more:
                     from_tx_id = rows[-1].tx_id
 
@@ -322,6 +322,7 @@ class Client:
         aggregate_id: str,
         from_version: t.Optional[int] = None,
         to_version: t.Optional[int] = None,
+        chunk_size: t.Optional[int] = None,
         limit: t.Optional[int] = None,
         reverse: bool = False,
         session: t.Optional[common.Session] = None,
@@ -333,23 +334,25 @@ class Client:
         if from_version is None and not reverse:
             from_version = 0
 
+        count = 0
         with self._start_session_if_desired(session) as session2:
             has_more = True
             while has_more:
                 rows, has_more = self._esp.read_events_by_aggregate_id(
                     session2,
                     aggregate_id=aggregate_id,
-                    limit=limit or DEFAULT_LIMIT,
+                    limit=chunk_size or DEFAULT_LIMIT,
                     from_version=from_version,
                     to_version=to_version,
                     reverse=reverse,
                 )
                 for row in rows:
                     yield row
-                if limit is not None:
-                    has_more = False
+                    count += 1
+                    if limit is not None and count >= limit:
+                        break
                 if has_more:
-                    from_version = rows[-1].version
+                    from_version = rows[-1].version + 1
 
     def sub(
         self,
