@@ -4,6 +4,6 @@
     "ms-python.mypy-type-checker",
     "ms-python.python",
     "ms-python.debugpy",
-    "nefrob.vscode-just-syntax"
+    "skellock.just"
   ]
 }
