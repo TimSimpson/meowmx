@@ -168,8 +168,11 @@ class Esp:
         to_tx_id: t.Optional[int],
         limit: int,
         reverse: bool = False,
-    ) -> t.List[common.RecordedEvent]:
-        """Reads all the events from the table via the transaction ID."""
+    ) -> common.LoadResult:
+        """Reads all the events from the table via the transaction ID.
+
+        Returns the events read and True if more events are available.
+        """
         if to_tx_id is None and limit is None:
             raise ValueError(
                 "Neither to_tx_id or limit are set. Too many rows would be returned."
@@ -201,7 +204,7 @@ class Esp:
         args = {
             "from_tx_id": from_tx_id,
             "to_tx_id": to_tx_id,
-            "limit": limit,
+            "limit": limit + 1,
         }
         result = session.execute(
             stmt,
@@ -209,7 +212,11 @@ class Esp:
         )
         rows = result.fetchall()
         events: t.List[common.RecordedEvent] = []
+        has_more = False
         for row in rows:
+            if len(events) >= limit:
+                has_more = True
+                break
             # Row order matches the SELECT list above:
             #   0 → id, 1 → tx_id (as string), 2 → event_type,
             #   3 → json data, 4 → version
@@ -225,7 +232,7 @@ class Esp:
                 )
             )
 
-        return events
+        return common.LoadResult(events, has_more)
 
     def read_events_by_aggregate_id(
         self,
@@ -235,7 +242,7 @@ class Esp:
         from_version: t.Optional[int],
         to_version: t.Optional[int],
         reverse: bool = False,
-    ) -> t.List[common.RecordedEvent]:
+    ) -> common.LoadResult:
         order = "DESC" if reverse else "ASC"
         query = textwrap.dedent(
             f"""
@@ -268,12 +275,16 @@ class Esp:
                 "aggregate_id": aggregate_id,
                 "from_version": from_version,
                 "to_version": to_version,
-                "limit": limit,
+                "limit": limit + 1,
             },
         )
         rows = result.fetchall()
         events: t.List[common.RecordedEvent] = []
+        has_more = False
         for row in rows:
+            if len(events) >= limit:
+                has_more = True
+                break
             # Row order matches the SELECT list above:
             #   0 → id, 1 → tx_id (as string), 2 → event_type,
             #   3 → json data, 4 → version
@@ -289,7 +300,7 @@ class Esp:
                 )
             )
 
-        return events
+        return common.LoadResult(events, has_more)
 
     def read_events_after_checkpoint(
         self,

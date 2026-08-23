@@ -49,8 +49,8 @@ class AggregateWriter:
             random_index = int(random.random() * (len(self._aggregate_ids) - 1))
             aggregate_id = self._aggregate_ids[random_index]
             # take time to load events
-            existing_events = meow.load_events(
-                self._aggregate_type, aggregate_id, 0, limit=36500
+            existing_events = list(
+                meow.load_events(self._aggregate_type, aggregate_id, 0, limit=36500)
             )
             version = self._aggregate_versions[aggregate_id]
             if version != (len(existing_events) - 1):

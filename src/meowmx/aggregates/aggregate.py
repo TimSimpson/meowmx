@@ -8,7 +8,7 @@ class LoadableAggregate(t.Protocol):
 
     aggregate_type: str  # String for the aggregate_type row
 
-    def __init__(self, recorded_events: t.List[common.RecordedEvent]) -> None: ...
+    def __init__(self, recorded_events: t.Iterable[common.RecordedEvent]) -> None: ...
 
 
 class SavableAggregate(t.Protocol):

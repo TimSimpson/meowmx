@@ -84,7 +84,7 @@ class MutexLockedClient:
         to_tx_id: t.Optional[int],
         limit: int,
         reverse: bool = False,
-    ) -> t.List[common.RecordedEvent]:
+    ) -> common.LoadResult:
         with self._mutex:
             return self._client.read_all_events(
                 session, from_tx_id, to_tx_id, limit, reverse
@@ -98,7 +98,7 @@ class MutexLockedClient:
         from_version: t.Optional[int],
         to_version: t.Optional[int],
         reverse: bool = False,
-    ) -> t.List[common.RecordedEvent]:
+    ) -> common.LoadResult:
         with self._mutex:
             return self._client.read_events_by_aggregate_id(
                 session, aggregate_id, limit, from_version, to_version, reverse

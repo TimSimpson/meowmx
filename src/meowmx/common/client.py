@@ -2,6 +2,7 @@ import typing as t
 from sqlalchemy import Engine
 from .types import (
     All,
+    LoadResult,
     NewEventRow,
     RecordedEvent,
     Session,
@@ -56,7 +57,7 @@ class Client(t.Protocol):
         to_tx_id: t.Optional[int],
         limit: int,
         reverse: bool = False,
-    ) -> t.List[RecordedEvent]: ...
+    ) -> LoadResult: ...
 
     def read_events_by_aggregate_id(
         self,
@@ -66,7 +67,7 @@ class Client(t.Protocol):
         from_version: t.Optional[int],
         to_version: t.Optional[int],
         reverse: bool = False,
-    ) -> t.List[RecordedEvent]: ...
+    ) -> LoadResult: ...
 
     def read_events_after_checkpoint(
         self,

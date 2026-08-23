@@ -131,12 +131,15 @@ class Client:
         to_tx_id: t.Optional[int],
         limit: t.Optional[int],
         session: t.Optional[common.Session] = None,
-    ) -> t.List[common.RecordedEvent]:
+    ) -> common.LoadResult:
         """Used to read _ALL_ events, regardless of aggregate ID or type.
 
         Can be paged by transaction IDs. Useful for scrolling through all
         events if necessary to manage an application, but not intended for
         general usage.
+
+        Returns a list of events read, and a boolean indicating if there are
+        more left to read.
         """
         limit = limit or DEFAULT_LIMIT
         with self._start_session_if_desired(session) as session:
@@ -156,15 +159,17 @@ class Client:
         limit: t.Optional[int] = None,
         reverse: bool = False,
         session: t.Optional[common.Session] = None,
-    ) -> t.List[common.RecordedEvent]:
+    ) -> common.LoadResult:
         """Loads all events by the given aggregate ID.
 
         This returns the "stream" of events for an aggregate.
+
+        Returns a list of events read, and a boolean indicating if there are
+        more left to read.
         """
         limit = limit or DEFAULT_LIMIT
         if from_version is None and not reverse:
             from_version = 0
-
         with self._start_session_if_desired(session) as session2:
             return self._esp.read_events_by_aggregate_id(
                 session2,
@@ -181,17 +186,21 @@ class Client:
         id: str,
         *,
         session: t.Optional[common.Session] = None,
+        limit: t.Optional[int] = None,
     ) -> LoadableAggregateType:
         """Constructs an aggregate by loading it's events.
 
         To support this, the type passed must define it's aggregate_type string
         as a class field and have an __init__ which can accept `recorded_events`.
         """
-        recorded_events = self.load_events(
+        limit = limit or DEFAULT_LIMIT
+        # TODO: FIX BUG
+        recorded_events, _ = self.load_events(
             aggregate_type.aggregate_type,
             id,
             from_version=0,
             session=session,
+            limit=limit,
         )
         return aggregate_type(recorded_events=recorded_events)
 
@@ -277,6 +286,70 @@ class Client:
                     )
                     results.append(recorded_event)
                 return results
+
+    def stream_all_events(
+        self,
+        from_tx_id: t.Optional[int],
+        to_tx_id: t.Optional[int],
+        limit: t.Optional[int],
+        session: t.Optional[common.Session] = None,
+    ) -> t.Iterator[common.RecordedEvent]:
+        """Used to read _ALL_ events, regardless of aggregate ID or type.
+
+        Can be paged by transaction IDs. Useful for scrolling through all
+        events if necessary to manage an application, but not intended for
+        general usage.
+        """
+        with self._start_session_if_desired(session) as session:
+            has_more = True
+            while has_more:
+                rows, has_more = self._esp.read_all_events(
+                    session,
+                    limit=limit or DEFAULT_LIMIT,
+                    from_tx_id=from_tx_id,
+                    to_tx_id=to_tx_id,
+                )
+                for row in rows:
+                    yield row
+                if limit is not None:
+                    has_more = False
+                if has_more:
+                    from_tx_id = rows[-1].tx_id
+
+    def stream_events(
+        self,
+        aggregate_type: str,
+        aggregate_id: str,
+        from_version: t.Optional[int] = None,
+        to_version: t.Optional[int] = None,
+        limit: t.Optional[int] = None,
+        reverse: bool = False,
+        session: t.Optional[common.Session] = None,
+    ) -> t.Iterator[common.RecordedEvent]:
+        """Loads all events by the given aggregate ID.
+
+        This returns the "stream" of events for an aggregate.
+        """
+        if from_version is None and not reverse:
+            from_version = 0
+
+        with self._start_session_if_desired(session) as session2:
+            has_more = True
+            while has_more:
+                rows, has_more = self._esp.read_events_by_aggregate_id(
+                    session2,
+                    aggregate_id=aggregate_id,
+                    limit=limit or DEFAULT_LIMIT,
+                    from_version=from_version,
+                    to_version=to_version,
+                    reverse=reverse,
+                )
+                for row in rows:
+                    yield row
+                if limit is not None:
+                    has_more = False
+                if has_more:
+                    from_version = rows[-1].version
 
     def sub(
         self,

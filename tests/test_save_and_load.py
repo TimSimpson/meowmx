@@ -336,8 +336,9 @@ def test_concurrent_save_check(
         )
     ]
 
-    recorded_events_from_load = meow.load_events("meowmx-test", aggregate_id)
+    recorded_events_from_load, has_more = meow.load_events("meowmx-test", aggregate_id)
 
+    assert has_more is False
     assert recorded_events_from_load == [
         meowmx.RecordedEvent(
             aggregate_type=aggregate_type,

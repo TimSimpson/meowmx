@@ -149,7 +149,7 @@ class Client:
         to_tx_id: t.Optional[int],
         limit: int,
         reverse: bool = False,
-    ) -> t.List[common.RecordedEvent]:
+    ) -> common.LoadResult:
         if to_tx_id is None and limit is None:
             raise ValueError(
                 "Neither to_tx_id nor limit is set – too many rows would be returned."
@@ -183,23 +183,28 @@ class Client:
                 if reverse
                 else tables.EsEvent.transaction_id.asc()
             )
-            .limit(limit)
+            .limit(limit + 1)
         )
 
         rows = session.execute(stmt).fetchall()
-
-        return [
-            common.RecordedEvent(
-                aggregate_type=row[0],
-                aggregate_id=row[3],
-                id=row[1],
-                tx_id=int(row[2]),  # cast back to int if needed
-                event_type=row[4],
-                json=row[5],
-                version=row[6],
+        result: t.List[common.RecordedEvent] = []
+        has_more = False
+        for row in rows:
+            if len(result) == limit:
+                has_more = True
+                break
+            result.append(
+                common.RecordedEvent(
+                    aggregate_type=row[0],
+                    aggregate_id=row[3],
+                    id=row[1],
+                    tx_id=int(row[2]),  # cast back to int if needed
+                    event_type=row[4],
+                    json=row[5],
+                    version=row[6],
+                )
             )
-            for row in rows
-        ]
+        return common.LoadResult(result, has_more)
 
     def read_events_by_aggregate_id(
         self,
@@ -209,7 +214,7 @@ class Client:
         from_version: t.Optional[int],
         to_version: t.Optional[int],
         reverse: bool = False,
-    ) -> t.List[common.RecordedEvent]:
+    ) -> common.LoadResult:
         stmt = (
             sqlalchemy.select(
                 tables.EsAggregate.aggregate_type,
@@ -239,21 +244,27 @@ class Client:
                 if reverse
                 else tables.EsEvent.version.asc()
             )
-            .limit(limit)
+            .limit(limit + 1)
         )
         rows = session.execute(stmt).fetchall()
-        return [
-            common.RecordedEvent(
-                aggregate_type=row[0],
-                aggregate_id=aggregate_id,
-                id=row[1],
-                tx_id=int(row[2]),
-                event_type=row[3],
-                json=row[4],
-                version=row[5],
+        result: t.List[common.RecordedEvent] = []
+        has_more = False
+        for row in rows:
+            if len(result) == limit:
+                has_more = True
+                break
+            result.append(
+                common.RecordedEvent(
+                    aggregate_type=row[0],
+                    aggregate_id=aggregate_id,
+                    id=row[1],
+                    tx_id=int(row[2]),
+                    event_type=row[3],
+                    json=row[4],
+                    version=row[5],
+                )
             )
-            for row in rows
-        ]
+        return common.LoadResult(result, has_more)
 
     def read_events_after_checkpoint(
         self,
