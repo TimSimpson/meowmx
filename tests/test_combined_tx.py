@@ -131,8 +131,17 @@ def test_combined_read_model(
 
 
 def test_combined_event_writes(
-    engine: meowmx.Engine, meow: meowmx.Client, new_uuid: t.Callable[[], str]
+    sql_url_cmd_opt: str,
+    engine: meowmx.Engine,
+    meow: meowmx.Client,
+    new_uuid: t.Callable[[], str],
 ) -> None:
+    if sql_url_cmd_opt.endswith(":memory:"):
+        raise pytest.skip(
+            "In memory SQLite dbs share a connection, so a second 'session' "
+            "is not possible and this test cannot be performed."
+        )
+
     Base.metadata.create_all(engine)
 
     aggregate_type_1 = "tree"
@@ -161,9 +170,17 @@ def test_combined_event_writes(
                 ],
             )
 
+            # assert that a _different_ session cannot see this change.
             tree_events = meow.load_events(aggregate_type_1, tree_id, from_version=0)
             assert 0 == len(tree_events)
 
+            # however, we can see it on the same session
+            tree_events_2 = meow.load_events(
+                aggregate_type_1, tree_id, from_version=0, session=session
+            )
+            assert 1 == len(tree_events_2)
+
+            # Confirm a save to a different stream works
             meow.save_events(
                 aggregate_type_2,
                 flower_id,
@@ -183,5 +200,7 @@ def test_combined_event_writes(
             )
 
     tree_events = meow.load_events(aggregate_type_1, tree_id, from_version=0)
-
     assert 1 == len(tree_events)
+
+    flower_events = meow.load_events(aggregate_type_1, flower_id, from_version=0)
+    assert 1 == len(flower_events)
