@@ -46,6 +46,11 @@ class Client:
                 self._esp = sqlalchemy.MutexLockedClient(self._esp)
 
     def setup_tables(self, aggregate_id_column_type: t.Optional[str] = None) -> None:
+        """Creates tables needed by MeowMX.
+
+        This is meant to be called by whatever code in your project is
+        responsible for creating SQL tables. Only needs to be called once.
+        """
         self._esp.setup_tables(self._engine, aggregate_id_column_type)
 
     def _handle_subscription_events(
@@ -127,6 +132,12 @@ class Client:
         limit: t.Optional[int],
         session: t.Optional[common.Session] = None,
     ) -> t.List[common.RecordedEvent]:
+        """Used to read _ALL_ events, regardless of aggregate ID or type.
+
+        Can be paged by transaction IDs. Useful for scrolling through all
+        events if necessary to manage an application, but not intended for
+        general usage.
+        """
         limit = limit or DEFAULT_LIMIT
         with self._start_session_if_desired(session) as session:
             return self._esp.read_all_events(
@@ -146,6 +157,10 @@ class Client:
         reverse: bool = False,
         session: t.Optional[common.Session] = None,
     ) -> t.List[common.RecordedEvent]:
+        """Loads all events by the given aggregate ID.
+
+        This returns the "stream" of events for an aggregate.
+        """
         limit = limit or DEFAULT_LIMIT
         if from_version is None and not reverse:
             from_version = 0
@@ -164,6 +179,7 @@ class Client:
         self,
         aggregate_type: t.Type[LoadableAggregateType],
         id: str,
+        *,
         session: t.Optional[common.Session] = None,
     ) -> LoadableAggregateType:
         """Constructs an aggregate by loading it's events.
@@ -172,7 +188,10 @@ class Client:
         as a class field and have an __init__ which can accept `recorded_events`.
         """
         recorded_events = self.load_events(
-            aggregate_type.aggregate_type, id, from_version=0, session=session
+            aggregate_type.aggregate_type,
+            id,
+            from_version=0,
+            session=session,
         )
         return aggregate_type(recorded_events=recorded_events)
 
@@ -268,6 +287,18 @@ class Client:
         max_sleep_time: int = 1,
         stop_signal: t.Optional[threading.Event] = None,
     ) -> None:
+        """Creates or reconnects to a subscription. Blocks but calls `handler`.
+
+        A subscription can be by one or more aggregate types, or by _all_
+        events ever written. The subscription name must be globally unique as
+        it is persistent. Calling this again with the same subscription name
+        will pick up the subscription where it left off.
+
+        If you're curious how this works, see postgresql-event-sourcing,
+        the repo every good idea in this project was copied from.
+
+        https://github.com/eugene-khyst/postgresql-event-sourcing
+        """
         backoff = BackoffCalc(1, max_sleep_time)
         while stop_signal is None or not stop_signal.is_set():
             processed = self._handle_subscription_events(
@@ -290,6 +321,7 @@ class Client:
         max_sleep_time: int = 1,
         stop_signal: t.Optional[threading.Event] = None,
     ) -> None:
+        """Identical to `sub` but more obviously subscribes to all events."""
         self.sub(
             subscription_name=subscription_name,
             handler=handler,
