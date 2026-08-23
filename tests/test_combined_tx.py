@@ -86,8 +86,11 @@ def test_combined_read_model(
         raise_error=False,
     )
 
-    potato_events = meow.load_events(aggregate_type, potato_id, from_version=0)
-    # assert 1 == len(potato_events)
+    potato_events, has_more = meow.load_events(
+        aggregate_type, potato_id, from_version=0
+    )
+    assert 1 == len(potato_events)
+    assert not has_more
     potato_rm = load_potato()
     assert potato_rm is not None
     assert potato_rm.version == 0
@@ -105,8 +108,11 @@ def test_combined_read_model(
             raise_error=True,
         )
 
-    potato_events = meow.load_events(aggregate_type, potato_id, from_version=0)
+    potato_events, has_more = meow.load_events(
+        aggregate_type, potato_id, from_version=0
+    )
     assert 1 == len(potato_events)
+    assert not has_more
     potato_rm = load_potato()
     assert potato_rm is not None
     assert potato_rm.version == 0
@@ -122,7 +128,10 @@ def test_combined_read_model(
         raise_error=False,
     )
 
-    potato_events = meow.load_events(aggregate_type, potato_id, from_version=0)
+    potato_events, has_more = meow.load_events(
+        aggregate_type, potato_id, from_version=0
+    )
+    assert not has_more
     assert 2 == len(potato_events)
     potato_rm = load_potato()
     assert potato_rm is not None
@@ -171,14 +180,18 @@ def test_combined_event_writes(
             )
 
             # assert that a _different_ session cannot see this change.
-            tree_events = meow.load_events(aggregate_type_1, tree_id, from_version=0)
+            tree_events, has_more = meow.load_events(
+                aggregate_type_1, tree_id, from_version=0
+            )
             assert 0 == len(tree_events)
+            assert not has_more
 
             # however, we can see it on the same session
-            tree_events_2 = meow.load_events(
+            tree_events_2, has_more = meow.load_events(
                 aggregate_type_1, tree_id, from_version=0, session=session
             )
             assert 1 == len(tree_events_2)
+            assert not has_more
 
             # Confirm a save to a different stream works
             meow.save_events(
@@ -199,8 +212,12 @@ def test_combined_event_writes(
                 ],
             )
 
-    tree_events = meow.load_events(aggregate_type_1, tree_id, from_version=0)
+    tree_events, has_more = meow.load_events(aggregate_type_1, tree_id, from_version=0)
     assert 1 == len(tree_events)
+    assert not has_more
 
-    flower_events = meow.load_events(aggregate_type_1, flower_id, from_version=0)
+    flower_events, has_more = meow.load_events(
+        aggregate_type_1, flower_id, from_version=0
+    )
     assert 1 == len(flower_events)
+    assert not has_more

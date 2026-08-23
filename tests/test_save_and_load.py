@@ -132,11 +132,12 @@ def test_save_and_load_events_with_session(
                 "meowmx-test", aggregate_id, events, version=0, session=session
             )
 
-            recorded_events = meow.load_events(
+            recorded_events, has_more = meow.load_events(
                 "meowmx-test", aggregate_id, session=session
             )
 
     assert len(recorded_events) == 3
+    assert not has_more
     actual_times = [json.loads(event.json)["time"] for event in recorded_events]
 
     expected_events = [
@@ -203,7 +204,7 @@ def test_save_and_load_events_with_session(
                 version=3,
                 session=session,
             )
-            recorded_events_2 = meow.load_events(
+            recorded_events_2, has_more = meow.load_events(
                 "meowmx-test", aggregate_id, session=session
             )
 
@@ -222,7 +223,8 @@ def test_save_and_load_events_with_session(
             version=3,
         ),
     )
-    assert expected_events == recorded_events_2
+    assert expected_events, has_more == recorded_events_2
+    assert not has_more
 
     with session_maker() as session:
         with session.begin():
@@ -242,7 +244,7 @@ def test_save_and_load_events_with_session(
                 version=None,
                 session=session,
             )
-            recorded_events_3 = meow.load_events(
+            recorded_events_3, has_more = meow.load_events(
                 "meowmx-test", aggregate_id, session=session
             )
 
@@ -261,6 +263,7 @@ def test_save_and_load_events_with_session(
             version=4,
         ),
     )
+    assert not has_more
     assert expected_events == recorded_events_3
 
 

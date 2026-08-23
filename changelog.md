@@ -3,6 +3,7 @@
 ## [0.4.0] - 2026-08-XX
 
 - The `load_events` and `load_all_events` of meowmx.Client both had _breaking_ changes: `limit` is now a non-optional keyword, and the return values of both are tuples, where the first value is the list of events (like before) and the second is a boolean value that is `True` if there are more rows to return. This makes it more obvious to the caller that they may be expected to call these methods again to fetch the full list.
+- The `load_aggregate` method _also_ has a breaking change: instead of accepting a list, the Aggregate type is expected to take an Iterator. This allows the stream to load in full in the case of large aggregates.
 
 ## [0.3.0] - 2026-05-26
 
