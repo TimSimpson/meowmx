@@ -75,7 +75,7 @@ class EventBuffer(t.Generic[T]):
             self._applier(event)
             self._next_version += 1
 
-    def load_recorded_events(self, events: t.List[common.RecordedEvent]) -> None:
+    def load_recorded_events(self, events: t.Sequence[common.RecordedEvent]) -> None:
         """Use this to load up events that are already in the DB."""
         for event in events:
             if event.version != self._next_version:

@@ -15,6 +15,8 @@ class Base(orm.DeclarativeBase):
 
 
 class Potato(Base):
+    """Represents the read model table for potatoes."""
+
     __tablename__ = "potatoes"
 
     id = orm.mapped_column(sqlalchemy.CHAR(64), primary_key=True)

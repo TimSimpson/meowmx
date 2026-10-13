@@ -43,7 +43,7 @@ test-new-rows *args:
 # runs every configuration, leaving a coverage report in ./htmlcov
 test-coverage:
     #!/usr/bin/env bash
-    set euo -pipefail
+    set -euo pipefail
     cd '{{ justfile_directory() }}'
     if [[ -f '.coverage' ]]; then
         rm '.coverage'

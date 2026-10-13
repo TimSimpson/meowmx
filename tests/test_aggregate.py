@@ -3,6 +3,7 @@ import typing as t
 
 import coolname  # type: ignore
 import meowmx
+from meowmx import client as client_module
 import pytest
 
 
@@ -56,8 +57,12 @@ class Aggregate:
 
 
 def test_save_load_aggregate(
-    meow: meowmx.Client, new_uuid: t.Callable[[], str]
+    meow: meowmx.Client,
+    new_uuid: t.Callable[[], str],
+    monkeypatch: t.Any,
 ) -> None:
+    monkeypatch.setattr(client_module, "DEFAULT_LIMIT", 1)
+
     agg = Aggregate()
     recorded_events = meow.save_aggregate(agg)
     assert len(recorded_events) == 0
