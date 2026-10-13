@@ -284,38 +284,6 @@ class Client:
                     results.append(recorded_event)
                 return results
 
-    def stream_all_events(
-        self,
-        from_tx_id: t.Optional[int],
-        to_tx_id: t.Optional[int],
-        chunk_size: t.Optional[int] = None,
-        limit: t.Optional[int] = None,
-        session: t.Optional[common.Session] = None,
-    ) -> t.Iterator[common.RecordedEvent]:
-        """Used to read _ALL_ events, regardless of aggregate ID or type.
-
-        Can be paged by transaction IDs. Useful for scrolling through all
-        events if necessary to manage an application, but not intended for
-        general usage.
-        """
-        count = 0
-        with self._start_session_if_desired(session) as session:
-            has_more = True
-            while has_more:
-                rows, has_more = self._esp.read_all_events(
-                    session,
-                    limit=chunk_size or DEFAULT_LIMIT,
-                    from_tx_id=from_tx_id,
-                    to_tx_id=to_tx_id,
-                )
-                for row in rows:
-                    yield row
-                    count += 1
-                    if limit is not None and count >= limit:
-                        break
-                if has_more:
-                    from_tx_id = rows[-1].tx_id
-
     def stream_events(
         self,
         aggregate_type: str,
