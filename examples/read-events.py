@@ -53,7 +53,7 @@ def main() -> None:
         sys.exit(1)
 
     id_mode = args.aggregate_id or args.aggregate_type
-    if id_mode and not (args.aggregate_id or args.aggregate_type):
+    if id_mode and not (args.aggregate_id and args.aggregate_type):
         print(
             "must specify both aggregate type and aggregate ID or niether",
             file=sys.stderr,
@@ -62,43 +62,50 @@ def main() -> None:
 
     backoff = BackoffCalc(1, 5)
     while True:
-        if id_mode:
-            events, has_more = meow.load_events(
-                aggregate_id=args.aggregate_id,
-                aggregate_type=args.aggregate_type,
-                from_version=args.from_var,
-                to_version=args.to,
-                limit=args.limit,
-            )
-        else:
-            events, has_more = meow.load_all_events(
-                from_tx_id=args.from_var, to_tx_id=args.to, limit=args.limit
-            )
+        has_more = True
+        while has_more:
+            if id_mode:
+                events, has_more = meow.load_events(
+                    aggregate_id=args.aggregate_id,
+                    aggregate_type=args.aggregate_type,
+                    from_version=args.from_var,
+                    to_version=args.to,
+                    limit=args.limit,
+                )
+            else:
+                events, has_more = meow.load_all_events(
+                    from_tx_id=args.from_var, to_tx_id=args.to, limit=args.limit
+                )
 
-        indent = 4 if args.pretty_json else None
-        for event in events:
-            data = json.loads(event.json)
-            print(
-                f"{event.id} (tx {event.tx_id}) : {event.aggregate_type} / {event.aggregate_id} [{event.version}] {event.event_type} : {json.dumps(data, indent=indent)}"
-            )
+            indent = 4 if args.pretty_json else None
+            for event in events:
+                data = json.loads(event.json)
+                print(
+                    f"{event.id} (tx {event.tx_id}) : {event.aggregate_type} / {event.aggregate_id} [{event.version}] {event.event_type} : {json.dumps(data, indent=indent)}"
+                )
 
-        if not args.tail and not has_more:
+            if events:
+                next_position: int
+                if id_mode:
+                    next_position = events[-1].version + 1
+                else:
+                    next_position = events[-1].tx_id
+
+                if args.to is not None and args.to <= next_position:
+                    return
+
+                args.from_var = next_position
+
+            has_more = has_more and (args.limit is None or args.tail)
+
+        if not args.tail:
             break
         else:
             if len(events) == 0:
                 # sleep and try again
                 time.sleep(backoff.failure())
             else:
-                current_position: int
-                if id_mode:
-                    current_position = events[-1].version
-                else:
-                    current_position = events[-1].tx_id
-                if args.to is not None and args.to <= current_position:
-                    break
-
                 backoff.success()
-                args.from_var = current_position
 
 
 if __name__ == "__main__":
