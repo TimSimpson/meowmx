@@ -7,6 +7,7 @@ import coolname  # type: ignore
 import pytest
 
 import meowmx
+from meowmx import client as client_module
 
 
 def _generate_slug() -> str:
@@ -14,7 +15,10 @@ def _generate_slug() -> str:
 
 
 def test_save_and_load_events(
-    meow: meowmx.Client, new_uuid: t.Callable[[], str]
+    meow: meowmx.Client,
+    new_uuid: t.Callable[[], str],
+    subtests: t.Any,
+    monkeypatch: t.Any,
 ) -> None:
     aggregate_type = "meowmx-test"
     aggregate_id = new_uuid()
@@ -45,10 +49,16 @@ def test_save_and_load_events(
             ),
         ),
     ]
-    recorded_events = meow.save_events("meowmx-test", aggregate_id, events, version=0)
-    actual_times = [json.loads(event.json)["time"] for event in recorded_events]
+    recorded_events_from_save_result = meow.save_events(
+        "meowmx-test", aggregate_id, events, version=0
+    )
+    actual_times = [
+        json.loads(event.json)["time"] for event in recorded_events_from_save_result
+    ]
 
-    assert recorded_events == [
+    # Confirm the save function returns the events we expect
+
+    expected_events = [
         meowmx.RecordedEvent(
             aggregate_type=aggregate_type,
             aggregate_id=aggregate_id,
@@ -90,6 +100,49 @@ def test_save_and_load_events(
             version=2,
         ),
     ]
+
+    reversed_expected_events = sorted(
+        expected_events, key=lambda r: r.version, reverse=True
+    )
+
+    with subtests.test("save result returns valid events"):
+        assert recorded_events_from_save_result == expected_events
+
+    with subtests.test("load_events with default arguments"):
+        # Confirm they look identical when loading
+        all_events_loaded = meow.load_events("meowmx-test", aggregate_id)
+
+        assert not all_events_loaded.has_more
+        assert expected_events == all_events_loaded.events
+
+    with subtests.test("load_events with reverse"):
+        # Confirm reversing the load is OK
+
+        reversed_all_events_loaded = meow.load_events(
+            "meowmx-test", aggregate_id, reverse=True
+        )
+
+        assert not reversed_all_events_loaded.has_more
+        assert reversed_expected_events == reversed_all_events_loaded.events
+
+    with subtests.test("stream_events"):
+        # Confirm streaming works
+
+        all_events_streamed = meow.stream_events(
+            "meowmx-test",
+            aggregate_id,
+        )
+        assert expected_events == list(all_events_streamed)
+
+    with subtests.test("stream_events with low limits"):
+        # Confirm streaming works
+        monkeypatch.setattr(client_module, "DEFAULT_LIMIT", 1)
+
+        all_events_streamed = meow.stream_events(
+            "meowmx-test",
+            aggregate_id,
+        )
+        assert expected_events == list(all_events_streamed)
 
 
 def test_save_and_load_events_with_session(

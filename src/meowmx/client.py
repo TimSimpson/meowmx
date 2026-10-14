@@ -186,7 +186,6 @@ class Client:
         id: str,
         *,
         session: t.Optional[common.Session] = None,
-        limit: t.Optional[int] = None,
     ) -> LoadableAggregateType:
         """Constructs an aggregate by loading it's events.
 
@@ -292,16 +291,21 @@ class Client:
         to_version: t.Optional[int] = None,
         chunk_size: t.Optional[int] = None,
         limit: t.Optional[int] = None,
-        reverse: bool = False,
         session: t.Optional[common.Session] = None,
     ) -> t.Iterator[common.RecordedEvent]:
         """Loads all events by the given aggregate ID.
 
-        This returns the "stream" of events for an aggregate.
+        This returns an iterator of events for an aggregate. The intention is
+        whatever is processing the loop expects to read back all events under
+        the given aggregate ID, meaning additional calls to load events from
+        the database could be made as the events are iterated.
         """
-        if from_version is None and not reverse:
+        if from_version is None:
             from_version = 0
 
+        chunk_size = chunk_size or DEFAULT_LIMIT
+        if limit is not None:
+            chunk_size = min(chunk_size, limit)
         count = 0
         with self._start_session_if_desired(session) as session2:
             has_more = True
@@ -312,7 +316,7 @@ class Client:
                     limit=chunk_size or DEFAULT_LIMIT,
                     from_version=from_version,
                     to_version=to_version,
-                    reverse=reverse,
+                    reverse=False,
                 )
                 for row in rows:
                     yield row
