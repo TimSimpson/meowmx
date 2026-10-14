@@ -126,16 +126,22 @@ def test_save_and_load_events(
         assert reversed_expected_events == reversed_all_events_loaded.events
 
     with subtests.test("stream_events"):
-        # Confirm streaming works
-
         all_events_streamed = meow.stream_events(
             "meowmx-test",
             aggregate_id,
         )
         assert expected_events == list(all_events_streamed)
 
+    with subtests.test("stream_events with small chunk and limit"):
+        all_events_streamed = meow.stream_events(
+            "meowmx-test",
+            aggregate_id,
+            limit=2,
+            chunk_size=1,
+        )
+        assert expected_events[0:2] == list(all_events_streamed)
+
     with subtests.test("stream_events with low limits"):
-        # Confirm streaming works
         monkeypatch.setattr(client_module, "DEFAULT_LIMIT", 1)
 
         all_events_streamed = meow.stream_events(

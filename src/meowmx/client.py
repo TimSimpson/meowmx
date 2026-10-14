@@ -322,7 +322,7 @@ class Client:
                     yield row
                     count += 1
                     if limit is not None and count >= limit:
-                        break
+                        return
                 if has_more:
                     from_version = rows[-1].version + 1
 
