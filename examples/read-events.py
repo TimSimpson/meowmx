@@ -25,10 +25,10 @@ def main() -> None:
         type=int,
         default=None,
         dest="from_var",
-        help="the first tx id to read from",
+        help="the first version id or tx id to read from",
     )
     parser.add_argument(
-        "--to", type=int, default=None, help="the last tx id to read to"
+        "--to", type=int, default=None, help="the last version id or tx id to read to"
     )
     parser.add_argument(
         "--limit", type=int, default=None, help="the max number of events to fetch"
@@ -55,7 +55,7 @@ def main() -> None:
     id_mode = args.aggregate_id or args.aggregate_type
     if id_mode and not (args.aggregate_id and args.aggregate_type):
         print(
-            "must specify both aggregate type and aggregate ID or niether",
+            "must specify both aggregate type and aggregate ID or neither",
             file=sys.stderr,
         )
         sys.exit(1)
