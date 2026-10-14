@@ -282,7 +282,7 @@ def test_save_and_load_events_with_session(
             version=3,
         ),
     )
-    assert expected_events, has_more == recorded_events_2
+    assert expected_events == recorded_events_2
     assert not has_more
 
     with session_maker() as session:
