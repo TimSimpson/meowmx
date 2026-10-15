@@ -2,10 +2,10 @@
 
 ## [0.4.0] - 2026-08-XX
 
-- The `load_events` and `load_all_events` of meowmx.Client both had _breaking_ changes: `limit` is now a non-optional keyword, and the return values of both are tuples, where the first value is the list of events (like before) and the second is a boolean value that is `True` if there are more rows to return. This makes it more obvious to the caller that they may be expected to call these methods again to fetch the full list.
-- `load_aggregate` has changed in one major way: it now returns an iterator which calls the database to load more events if they are found. This fixes a bug where aggregates with more than 512 events would stop being read. This same functionality is available via `iter_events` which returns an iterator directly.
-- It's now possible to delete events by their aggregate ID with `delete_events`. All events can be deleted or only the "tail" of events (everything from some version forward).
-
+- **BREAKING CHANGES:** The `load_events` and `load_all_events` methods of `meowmx.Client` have changed in the following ways: `limit` is now a non-optional keyword, and the return values of both are tuples, where the first value is the list of events (like before) and the second is a boolean value that is `True` if there are more rows to return. This makes it more obvious to the caller that they may be expected to call these methods again to fetch the full list of events from the database.
+- **BREAKING CHANGES:** The `load_aggregate` method of `meowmx.Client` expects the type it is passed to accept an iterator in the __init__, not a list. The iterator must be exhausted for the full event list to be read. This fixes a bug where aggregates with more than 512 events would stop being read. Additionally the `session` argument must now be specified as a keyword argument.
+- This same functionality is available via `iter_events` which returns an iterator directly.
+- It's now possible to delete events by their aggregate ID with the method `delete_events`. All events can be deleted or only the "tail" of events (everything from some version until the end of the stream).
 
 
 ## [0.3.0] - 2026-05-26
