@@ -75,8 +75,14 @@ class EventBuffer(t.Generic[T]):
             self._applier(event)
             self._next_version += 1
 
-    def load_recorded_events(self, events: t.Sequence[common.RecordedEvent]) -> None:
-        """Use this to load up events that are already in the DB."""
+    def load_recorded_events(self, events: t.Iterable[common.RecordedEvent]) -> int:
+        """Use this to load up events that are already in the DB.
+
+        Returns the events applied by the applier. Checking for a falsey
+        condition is an easy way to raise an exception to signal not found in
+        some contexts.
+        """
+        count = 0
         for event in events:
             if event.version != self._next_version:
                 raise RuntimeError(
@@ -85,3 +91,6 @@ class EventBuffer(t.Generic[T]):
 
             self._applier(self._loader(event))
             self._next_version += 1
+            count += 1
+
+        return count

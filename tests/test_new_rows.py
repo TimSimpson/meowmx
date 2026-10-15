@@ -1,6 +1,7 @@
 import json
 import typing as t
 
+import pytest
 import sqlalchemy
 from sqlalchemy import orm
 
@@ -42,7 +43,7 @@ class OrangeAggregate:
 
     def __init__(
         self,
-        recorded_events: t.Optional[t.Sequence[meowmx.RecordedEvent]] = None,
+        recorded_events: t.Optional[t.Iterable[meowmx.RecordedEvent]] = None,
         new_id: t.Optional[str] = None,
     ) -> None:
         self._description = ""
@@ -53,7 +54,8 @@ class OrangeAggregate:
             applier=self._apply,
         )
         if recorded_events is not None:
-            self._events.load_recorded_events(recorded_events)
+            if not self._events.load_recorded_events(recorded_events):
+                raise RuntimeError("orange not found")
         elif new_id is not None:
             self._events.emit(
                 Event("OrangeCreated", id=new_id, value={"description": "new"})
@@ -146,9 +148,9 @@ def test_write_oranges(
 
     expected_agg_info: t.Dict[str, int] = {}
 
-    with orm.Session(engine) as session:
-        for i in range(iterations_cmd_opt or 1):
-            new_id = new_uuid()
+    for i in range(iterations_cmd_opt or 1):
+        new_id = new_uuid()
+        with orm.Session(engine) as session:
             with session.begin():
                 new_orange = OrangeAggregate(new_id=new_id)
                 meow.save_aggregate(new_orange, session=session)
@@ -191,12 +193,58 @@ def test_write_oranges(
                 )
             expected_agg_info[new_id] = 2
 
-    all_aggs: t.List[meowmx.AggregateInfo] = []
+        agg, _ = meow.list_aggregates(from_id=new_id, limit=1)
+        assert agg[0].id == new_id
+        assert agg[0].version == expected_agg_info[new_id]
+
+    seen_aggs: t.Set[str] = set()
     next_id: t.Optional[str] = None
     while True:
         agg_info, next_id = meow.list_aggregates(
             aggregate_type=OrangeAggregate.aggregate_type, from_id=next_id, limit=128
         )
-        all_aggs.extend(agg_info)
+        for actual_agg in agg_info:
+            assert actual_agg.id not in seen_aggs, "Error: agg.id was listed twice"
+            # avoid failing the test if it's just been run multiple times-
+            # there may be past events clogging things up here
+            if actual_agg.id in expected_agg_info:
+                assert expected_agg_info[actual_agg.id] == actual_agg.version
+                assert OrangeAggregate.aggregate_type == actual_agg.aggregate_type
+
         if next_id is None:
             break
+
+    # make sure we can load them all
+    for aggregate_id, expected_version in expected_agg_info.items():
+        orange = meow.load_aggregate(OrangeAggregate, aggregate_id)
+        assert orange.version == expected_version
+
+    # Now delete all of these aggregates
+
+    for aggregate_id in expected_agg_info.keys():
+        meow.delete_events(aggregate_id=aggregate_id)
+
+    # Go through again and confirm we see nothing that was there before
+    next_id = None
+    while True:
+        agg_info, next_id = meow.list_aggregates(
+            aggregate_type=OrangeAggregate.aggregate_type, from_id=next_id, limit=128
+        )
+        for actual_agg in agg_info:
+            assert actual_agg.id not in expected_agg_info
+        if next_id is None:
+            break
+
+    # make sure we find none of them
+    for aggregate_id in expected_agg_info.keys():
+        with pytest.raises(RuntimeError) as exc:
+            meow.load_aggregate(OrangeAggregate, aggregate_id)
+
+        assert "not found" in str(exc)
+
+        with orm.Session(engine) as session:
+            with session.begin():
+                read_model = session.get(OrangeReadModel, aggregate_id)
+                assert read_model is not None
+                assert read_model.version == expected_version
+                session.delete(read_model)

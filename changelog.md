@@ -13,7 +13,8 @@
 
 ### Changes
 
-- The EventBuffer's __init__ type hint was changed to an `Iterable`, not a `Sequence`. This shouldn't break any callers but could have confused people assembling an aggregate class.
+- The `meowmx.EventBuffer` class's `load_recorded_event` method's `events` argument was changed to an `Iterable`, not a `Sequence`. This shouldn't break any callers but could have confused people assembling an aggregate class. 
+- `meowmx.EventBuffer.load_recorded_events` returns the number of events applied by the aggregate to make it easier to raise some kind of not found condition in aggregate types that require at least one event when being loaded (this would be practically all of them). Previously the `db_version` could be checked.
 
 ## [0.4.0] - 2026-10-15
 
