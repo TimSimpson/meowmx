@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.4.0] - 2026-08-XX
+## [0.4.0] - 2026-10-15
 
 - **BREAKING CHANGES:** The `load_events` and `load_all_events` methods of `meowmx.Client` have changed in the following ways: `limit` is now a non-optional keyword only argument, and the return values of both are tuples, where the first value is the list of events (like before) and the second is a boolean value that is `True` if there are more rows to return. This makes it more obvious to the caller that they may be expected to call these methods again to fetch the full list of events from the database.
 - **BREAKING CHANGES:** The `load_aggregate` method of `meowmx.Client` expects the type it is passed to accept an iterator in the __init__, not a list. The iterator must be exhausted for the full event list to be read. This fixes a bug where aggregates with more than 512 events would stop being read. Additionally the `session` argument must now be specified as a keyword argument.
