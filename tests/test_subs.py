@@ -134,7 +134,7 @@ class Worker:
             self._seen_event_count += 1
             self._events[event.id] = event
             # load the event stream to simulate what most workers would do
-            list(meow.stream_events(event.aggregate_type, event.aggregate_id))
+            list(meow.iter_events(event.aggregate_type, event.aggregate_id))
 
         meow.sub(
             self._sub_name,

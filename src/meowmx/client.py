@@ -156,6 +156,49 @@ class Client:
                     from_version=from_version,
                 )
 
+    def iter_events(
+        self,
+        aggregate_type: str,
+        aggregate_id: str,
+        from_version: t.Optional[int] = None,
+        to_version: t.Optional[int] = None,
+        chunk_size: t.Optional[int] = None,
+        limit: t.Optional[int] = None,
+        session: t.Optional[common.Session] = None,
+    ) -> t.Iterator[common.RecordedEvent]:
+        """Loads all events by the given aggregate ID.
+
+        This returns an iterator of events for an aggregate. The intention is
+        whatever is processing the loop expects to read back all events under
+        the given aggregate ID, meaning additional calls to load events from
+        the database could be made as the events are iterated.
+        """
+        if from_version is None:
+            from_version = 0
+
+        chunk_size = chunk_size or DEFAULT_LIMIT
+        if limit is not None:
+            chunk_size = min(chunk_size, limit)
+        count = 0
+        with self._start_session_if_desired(session) as session2:
+            has_more = True
+            while has_more:
+                rows, has_more = self._esp.read_events_by_aggregate_id(
+                    session2,
+                    aggregate_id=aggregate_id,
+                    limit=chunk_size or DEFAULT_LIMIT,
+                    from_version=from_version,
+                    to_version=to_version,
+                    reverse=False,
+                )
+                for row in rows:
+                    yield row
+                    count += 1
+                    if limit is not None and count >= limit:
+                        return
+                if has_more:
+                    from_version = rows[-1].version + 1
+
     def load_all_events(
         self,
         *,
@@ -229,7 +272,7 @@ class Client:
         To support this, the type passed must define it's aggregate_type string
         as a class field and have an __init__ which can accept `recorded_events`.
         """
-        recorded_events = self.stream_events(
+        recorded_events = self.iter_events(
             aggregate_type.aggregate_type,
             id,
             from_version=0,
@@ -319,49 +362,6 @@ class Client:
                     )
                     results.append(recorded_event)
                 return results
-
-    def stream_events(
-        self,
-        aggregate_type: str,
-        aggregate_id: str,
-        from_version: t.Optional[int] = None,
-        to_version: t.Optional[int] = None,
-        chunk_size: t.Optional[int] = None,
-        limit: t.Optional[int] = None,
-        session: t.Optional[common.Session] = None,
-    ) -> t.Iterator[common.RecordedEvent]:
-        """Loads all events by the given aggregate ID.
-
-        This returns an iterator of events for an aggregate. The intention is
-        whatever is processing the loop expects to read back all events under
-        the given aggregate ID, meaning additional calls to load events from
-        the database could be made as the events are iterated.
-        """
-        if from_version is None:
-            from_version = 0
-
-        chunk_size = chunk_size or DEFAULT_LIMIT
-        if limit is not None:
-            chunk_size = min(chunk_size, limit)
-        count = 0
-        with self._start_session_if_desired(session) as session2:
-            has_more = True
-            while has_more:
-                rows, has_more = self._esp.read_events_by_aggregate_id(
-                    session2,
-                    aggregate_id=aggregate_id,
-                    limit=chunk_size or DEFAULT_LIMIT,
-                    from_version=from_version,
-                    to_version=to_version,
-                    reverse=False,
-                )
-                for row in rows:
-                    yield row
-                    count += 1
-                    if limit is not None and count >= limit:
-                        return
-                if has_more:
-                    from_version = rows[-1].version + 1
 
     def sub(
         self,

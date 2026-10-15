@@ -133,15 +133,15 @@ def test_save_and_load_events(
         assert not reversed_all_events_loaded.has_more
         assert reversed_expected_events == reversed_all_events_loaded.events
 
-    with subtests.test("stream_events"):
-        all_events_streamed = meow.stream_events(
+    with subtests.test("iter_events"):
+        all_events_streamed = meow.iter_events(
             "meowmx-test",
             aggregate_id,
         )
         assert expected_events == list(all_events_streamed)
 
-    with subtests.test("stream_events with small chunk and limit"):
-        all_events_streamed = meow.stream_events(
+    with subtests.test("iter_events with small chunk and limit"):
+        all_events_streamed = meow.iter_events(
             "meowmx-test",
             aggregate_id,
             limit=2,
@@ -149,10 +149,10 @@ def test_save_and_load_events(
         )
         assert expected_events[0:2] == list(all_events_streamed)
 
-    with subtests.test("stream_events with low limits"):
+    with subtests.test("iter_events with low limits"):
         monkeypatch.setattr(client_module, "DEFAULT_LIMIT", 1)
 
-        all_events_streamed = meow.stream_events(
+        all_events_streamed = meow.iter_events(
             "meowmx-test",
             aggregate_id,
         )
@@ -162,7 +162,7 @@ def test_save_and_load_events(
         deleted_events = meow.delete_events(aggregate_type, aggregate_id)
         assert deleted_events == 3
 
-        all_events_streamed = meow.stream_events(
+        all_events_streamed = meow.iter_events(
             "meowmx-test",
             aggregate_id,
         )
@@ -484,7 +484,7 @@ def test_delete_and_recreate(
 
     assert deleted_count == 1
     assert [] == list(
-        meow.stream_events(
+        meow.iter_events(
             "meowmx-test",
             aggregate_id,
         )
@@ -500,7 +500,7 @@ def test_delete_and_recreate(
     assert deleted_count == 2
     assert 1 == len(
         list(
-            meow.stream_events(
+            meow.iter_events(
                 "meowmx-test",
                 aggregate_id,
             )
@@ -520,7 +520,7 @@ def test_delete_and_recreate(
     assert 15 == deleted_count
     assert 15 == len(
         list(
-            meow.stream_events(
+            meow.iter_events(
                 "meowmx-test",
                 aggregate_id,
             )

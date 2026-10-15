@@ -29,7 +29,7 @@ def main() -> None:
 
     def handler(session: meowmx.Session, event: meowmx.RecordedEvent) -> None:
         existing_events = list(
-            meow.stream_events(event.aggregate_type, event.aggregate_id)
+            meow.iter_events(event.aggregate_type, event.aggregate_id)
         )
         end_time = time.perf_counter()
         nonlocal count
