@@ -60,6 +60,18 @@ TxId: t.TypeAlias = str
 
 
 @dataclass
+class AggregateInfo:
+    id: str
+    version: int
+    aggregate_type: str
+
+
+class ListAggregateInfoResult(t.NamedTuple):
+    aggregates: t.List[AggregateInfo]
+    next_id: t.Optional[str]
+
+
+@dataclass
 class SubCheckpoint:
     last_tx_id: TxId
     last_event_id: int

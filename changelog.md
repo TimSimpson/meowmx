@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.1] - 2026-10-X
+
+### Breaking Changes
+
+- EventBuffer 
+
+### New Features
+
+- `meowmx.Client.list_aggregates` is a new method that can list aggregate IDs, version numbers and types in the system.
+- `meowmx.Client` now accepts a `default_chunk_size` argument, which the `iter_events` method uses when the `chunk_size` argument isn't passed explicitly. When this is not specified, the new default chunk size was reduced from 512 to 128, which still may be too high for applications with especially larger events.
+
+### Changes
+
+- The EventBuffer's __init__ type hint was changed to an `Iterable`, not a `Sequence`. This shouldn't break any callers but could have confused people assembling an aggregate class.
+
 ## [0.4.0] - 2026-10-15
 
 ### Breaking Changes

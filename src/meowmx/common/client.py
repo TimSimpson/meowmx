@@ -2,6 +2,7 @@ import typing as t
 from sqlalchemy import Engine
 from .types import (
     All,
+    ListAggregateInfoResult,
     LoadResult,
     NewEventRow,
     RecordedEvent,
@@ -52,6 +53,14 @@ class Client(t.Protocol):
     def get_aggregate_version(
         self, session: Session, aggregate_id: str
     ) -> t.Optional[int]: ...
+
+    def list_aggregates(
+        self,
+        session: Session,
+        aggregate_type: t.Optional[str],
+        from_id: t.Optional[str],
+        limit: int,
+    ) -> ListAggregateInfoResult: ...
 
     def read_checkpoint_and_lock_subscription(
         self, session: Session, subscription_name: str

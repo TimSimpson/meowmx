@@ -35,7 +35,7 @@ def main() -> None:
     meow = demolib.create_meowmx()
 
     try:
-        json_obj = json.loads(args.data)
+        json.loads(args.data)
     except json.decoder.JSONDecodeError:
         print(f"Error with input data: {args.data}")
         raise
@@ -43,7 +43,7 @@ def main() -> None:
     events = [
         meowmx.NewEvent(
             event_type=args.event_type,
-            json=json_obj,
+            json=args.data,
         )
     ]
     meow.save_events(

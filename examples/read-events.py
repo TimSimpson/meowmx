@@ -42,8 +42,8 @@ def main() -> None:
 
     meow = demolib.create_meowmx()
 
-    if args.limit == 0:
-        print("bad value for limit: 0", file=sys.stderr)
+    if not args.limit:
+        print(f"bad value for limit: {args.limit}", file=sys.stderr)
         sys.exit(1)
 
     id_mode = args.aggregate_id is not None

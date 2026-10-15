@@ -217,6 +217,54 @@ class Esp:
             {"aggregate_id": aggregate_id},
         ).scalar_one_or_none()
 
+    def list_aggregates(
+        self,
+        session: common.Session,
+        aggregate_type: t.Optional[str],
+        from_id: t.Optional[str],
+        limit: int,
+    ) -> common.ListAggregateInfoResult:
+        query = textwrap.dedent(
+            """
+            SELECT
+                id, version, aggregate_type
+            FROM es_aggregates a
+            WHERE (:aggregate_type IS NULL OR a.aggregate_type = :aggregate_type)
+            AND  (:from_id IS NULL OR a.id >= :from_id)
+            ORDER BY id
+            LIMIT :limit
+            """
+        )
+
+        result = session.execute(
+            text(query).bindparams(
+                bindparam("aggregate_type", type_=String),
+                bindparam("from_id", type_=String),
+                bindparam("limit", type_=Integer),
+            ),
+            {"aggregate_type": aggregate_type, "from_id": from_id, "limit": limit + 1},
+        )
+        rows = result.fetchall()
+        if rows is None:
+            return common.ListAggregateInfoResult([], False)
+
+        aggregates: t.List[common.AggregateInfo] = []
+        next_id: t.Optional[str] = None
+        for row in rows:
+            if len(aggregates) >= limit:
+                next_id = str(row.id)
+                break
+
+            aggregates.append(
+                common.AggregateInfo(
+                    aggregate_type=row[2],
+                    id=str(row[0]),
+                    version=row[1],
+                )
+            )
+
+        return common.ListAggregateInfoResult(aggregates, next_id)
+
     def read_checkpoint_and_lock_subscription(
         self, session: t.Any, subscription_name: str
     ) -> t.Optional[common.SubCheckpoint]:
@@ -306,7 +354,7 @@ class Esp:
             events.append(
                 common.RecordedEvent(
                     aggregate_type=row[0],
-                    aggregate_id=row[3],
+                    aggregate_id=str(row[3]),
                     id=row[1],
                     tx_id=int(row[2]),  # cast back to int if needed
                     event_type=row[4],

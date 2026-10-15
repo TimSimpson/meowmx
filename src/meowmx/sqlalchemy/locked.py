@@ -80,6 +80,16 @@ class MutexLockedClient:
         with self._mutex:
             return self._client.get_aggregate_version(session, aggregate_id)
 
+    def list_aggregates(
+        self,
+        session: common.Session,
+        aggregate_type: t.Optional[str],
+        from_id: t.Optional[str],
+        limit: int,
+    ) -> common.ListAggregateInfoResult:
+        with self._mutex:
+            return self._client.list_aggregates(session, aggregate_type, from_id, limit)
+
     def read_checkpoint_and_lock_subscription(
         self, session: t.Any, subscription_name: str
     ) -> t.Optional[common.SubCheckpoint]:

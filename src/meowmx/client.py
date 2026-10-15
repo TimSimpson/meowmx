@@ -18,7 +18,7 @@ class ExpectedVersionFailure(RuntimeError):
     pass
 
 
-DEFAULT_LIMIT = 512
+DEFAULT_CHUNK_SIZE = 128
 
 
 LoadableAggregateType = t.TypeVar(
@@ -31,6 +31,7 @@ class Client:
         self,
         engine: common.Engine,
         session_maker: t.Optional[common.SessionMaker] = None,
+        default_chunk_size: t.Optional[int] = None,
     ) -> None:
         self._engine = engine
         if session_maker is not None:
@@ -44,6 +45,8 @@ class Client:
             self._esp = sqlalchemy.Client()
             if sqlalchemy.engine_is_in_memory_db(self._engine):
                 self._esp = sqlalchemy.MutexLockedClient(self._esp)
+
+        self._default_chunk_size = default_chunk_size or DEFAULT_CHUNK_SIZE
 
     def setup_tables(self, aggregate_id_column_type: t.Optional[str] = None) -> None:
         """Creates tables needed by MeowMX.
@@ -181,7 +184,7 @@ class Client:
         if limit is not None and limit < 1:
             raise ValueError("`limit` argument must be None or > 0")
 
-        chunk_size = chunk_size or DEFAULT_LIMIT
+        chunk_size = chunk_size or self._default_chunk_size
         if limit is not None:
             chunk_size = min(chunk_size, limit)
         count = 0
@@ -191,7 +194,7 @@ class Client:
                 rows, has_more = self._esp.read_events_by_aggregate_id(
                     session2,
                     aggregate_id=aggregate_id,
-                    limit=chunk_size or DEFAULT_LIMIT,
+                    limit=chunk_size,
                     from_version=from_version,
                     to_version=to_version,
                     reverse=False,
@@ -203,6 +206,30 @@ class Client:
                         return
                 if has_more:
                     from_version = rows[-1].version + 1
+
+    def list_aggregates(
+        self,
+        *,
+        limit: int,
+        aggregate_type: t.Optional[str] = None,
+        from_id: t.Optional[str] = None,
+        session: t.Optional[common.Session] = None,
+    ) -> common.ListAggregateInfoResult:
+        """Lists quick info on all aggregates.
+
+        This can be useful in contexts where you want to manage all aggregates
+        and don't have a separate read model on hand.
+        """
+        if limit < 1:
+            raise ValueError("`limit` argument must be > 0")
+
+        with self._start_session_if_desired(session) as session2:
+            return self._esp.list_aggregates(
+                session2,
+                aggregate_type=aggregate_type,
+                from_id=from_id,
+                limit=limit,
+            )
 
     def load_all_events(
         self,

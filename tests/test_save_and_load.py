@@ -7,7 +7,6 @@ import coolname  # type: ignore
 import pytest
 
 import meowmx
-from meowmx import client as client_module
 
 
 def _generate_slug() -> str:
@@ -21,7 +20,6 @@ def test_save_and_load_events(
     meow: meowmx.Client,
     new_uuid: t.Callable[[], str],
     subtests: t.Any,
-    monkeypatch: t.Any,
 ) -> None:
     aggregate_type = "meowmx-test"
     aggregate_id = new_uuid()
@@ -154,12 +152,18 @@ def test_save_and_load_events(
             )
 
     with subtests.test("iter_events with low limits"):
-        monkeypatch.setattr(client_module, "DEFAULT_LIMIT", 1)
-
-        all_events_streamed = meow.iter_events(
-            aggregate_id,
-        )
+        all_events_streamed = meow.iter_events(aggregate_id, chunk_size=1)
         assert expected_events == list(all_events_streamed)
+
+    with subtests.test("list aggregates shows info"):
+        agg, _ = meow.list_aggregates(
+            aggregate_type=aggregate_type, from_id=aggregate_id, limit=1
+        )
+        assert [
+            meowmx.AggregateInfo(
+                id=aggregate_id, version=2, aggregate_type=aggregate_type
+            )
+        ] == agg
 
     with subtests.test("delete events"):
         deleted_events = meow.delete_events(aggregate_id)
@@ -169,6 +173,14 @@ def test_save_and_load_events(
             aggregate_id,
         )
         assert [] == list(all_events_streamed)
+
+        agg, _ = meow.list_aggregates(
+            aggregate_type=aggregate_type, from_id=aggregate_id, limit=1
+        )
+        # We may have an aggregate from another test- but just prove it's
+        # not the same one.
+        if len(agg) > 0:
+            assert agg[0].id != aggregate_id
 
 
 def test_save_and_load_events_with_session(

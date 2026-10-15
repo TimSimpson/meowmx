@@ -178,6 +178,49 @@ class Client:
 
         return result
 
+    def list_aggregates(
+        self,
+        session: common.Session,
+        aggregate_type: t.Optional[str],
+        from_id: t.Optional[str],
+        limit: int,
+    ) -> common.ListAggregateInfoResult:
+        stmt = (
+            sqlalchemy.select(
+                tables.EsAggregate.id,
+                tables.EsAggregate.version,
+                tables.EsAggregate.aggregate_type,
+            )
+            .where(
+                sqlalchemy.and_(
+                    (tables.EsAggregate.aggregate_type == aggregate_type)
+                    if aggregate_type is not None
+                    else sqlalchemy.true(),
+                    (tables.EsAggregate.id >= from_id)
+                    if from_id is not None
+                    else sqlalchemy.true(),
+                )
+            )
+            .order_by(tables.EsAggregate.id)
+            .limit(limit + 1)
+        )
+
+        rows = session.execute(stmt).fetchall()
+        result: t.List[common.AggregateInfo] = []
+        next_id: t.Optional[str] = None
+        for row in rows:
+            if len(result) == limit:
+                next_id = row.id
+                break
+            result.append(
+                common.AggregateInfo(
+                    id=row.id,
+                    version=row.version,
+                    aggregate_type=row.aggregate_type,
+                )
+            )
+        return common.ListAggregateInfoResult(result, next_id)
+
     def read_checkpoint_and_lock_subscription(
         self, session: t.Any, subscription_name: str
     ) -> t.Optional[common.SubCheckpoint]:

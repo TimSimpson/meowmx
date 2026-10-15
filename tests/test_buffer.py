@@ -4,7 +4,6 @@ import typing as t
 
 import coolname  # type: ignore
 import meowmx
-from meowmx import client as client_module
 import pytest
 
 
@@ -58,7 +57,7 @@ def load_event(event: meowmx.RecordedEvent) -> Base:
     elif event.event_type == "Restart":
         return Restart()
     else:
-        raise RuntimeError("psdgf")
+        raise RuntimeError("unexpected event type")
 
 
 class Aggregate:
@@ -117,9 +116,8 @@ class Aggregate:
 def test_save_load_aggregate(
     meow: meowmx.Client,
     new_uuid: t.Callable[[], str],
-    monkeypatch: t.Any,
 ) -> None:
-    monkeypatch.setattr(client_module, "DEFAULT_LIMIT", 1)
+    meow._default_chunk_size = 1
 
     new_id = new_uuid()
     agg = Aggregate(new_id=new_id)

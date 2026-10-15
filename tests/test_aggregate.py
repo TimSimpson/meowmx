@@ -1,14 +1,8 @@
 import json
 import typing as t
 
-import coolname  # type: ignore
 import meowmx
-from meowmx import client as client_module
 import pytest
-
-
-def _generate_slug() -> str:
-    return t.cast(str, coolname.generate_slug())
 
 
 class Aggregate:
@@ -61,7 +55,7 @@ def test_save_load_aggregate(
     new_uuid: t.Callable[[], str],
     monkeypatch: t.Any,
 ) -> None:
-    monkeypatch.setattr(client_module, "DEFAULT_LIMIT", 1)
+    meow._default_chunk_size = 1
 
     agg = Aggregate()
     recorded_events = meow.save_aggregate(agg)
@@ -151,7 +145,7 @@ def test_save_load_large_aggregate(
     meow: meowmx.Client,
     new_uuid: t.Callable[[], str],
 ) -> None:
-    monkeypatch.setattr(meowmx.client, "DEFAULT_LIMIT", 4)
+    meow._default_chunk_size = 4
     with session_maker() as session:
         agg = Aggregate()
         recorded_events = meow.save_aggregate(agg, session=session)
