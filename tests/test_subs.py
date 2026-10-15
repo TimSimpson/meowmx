@@ -50,9 +50,7 @@ class AggregateWriter:
             aggregate_id = self._aggregate_ids[random_index]
             # take time to load events
             existing_events = list(
-                meow.load_events(
-                    self._aggregate_type, aggregate_id, from_version=0, limit=36500
-                ).events
+                meow.load_events(aggregate_id, from_version=0, limit=36500).events
             )
             version = self._aggregate_versions[aggregate_id]
             if version != (len(existing_events) - 1):
@@ -134,7 +132,7 @@ class Worker:
             self._seen_event_count += 1
             self._events[event.id] = event
             # load the event stream to simulate what most workers would do
-            list(meow.iter_events(event.aggregate_type, event.aggregate_id))
+            list(meow.iter_events(event.aggregate_id))
 
         meow.sub(
             self._sub_name,

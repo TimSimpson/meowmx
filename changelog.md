@@ -2,15 +2,26 @@
 
 ## [0.4.0] - 2026-10-15
 
-- **BREAKING CHANGES:** The `load_events` and `load_all_events` methods of `meowmx.Client` have changed in the following ways: `limit` is now a non-optional keyword only argument, and the return values of both are tuples, where the first value is the list of events (like before) and the second is a boolean value that is `True` if there are more rows to return. This makes it more obvious to the caller that they may be expected to call these methods again to fetch the full list of events from the database.
-- **BREAKING CHANGES:** The `load_aggregate` method of `meowmx.Client` expects the type it is passed to accept an iterator in the __init__, not a list. The iterator must be exhausted for the full event list to be read. This fixes a bug where aggregates with more than 512 events would stop being read. Additionally the `session` argument must now be specified as a keyword argument.
-- This same functionality is available via `iter_events` which returns an iterator directly.
+### Breaking Changes
+
+- The `load_events` and `load_all_events` methods of `meowmx.Client` have changed in the following ways: `limit` is now a non-optional keyword only argument, and the return values of both are tuples, where the first value is the list of events (like before) and the second is a boolean value that is `True` if there are more rows to return. This makes it more obvious to the caller that they may be expected to call these methods again to fetch the full list of events from the database (since this can be error prone, see the new `iter_events` for alternatives).
+- `meowmx.Client.load_events` no longer accepts the `aggregate_type` for the first argument, as it didn't need to: the argument was in place for future expansion, but with the other breaking changes it's being removed since it's not even checked today and could lead to a false sense of security.
+- All arguments in the `meowmx.Client` method `load_events` after `aggregate_id` are now keyword-only now, and _all_ arguments of the `load_all_events` are keyword-only.
+- The `load_aggregate` method of `meowmx.Client` expects the type it is passed to accept an iterator in the __init__, not a list. The iterator must be exhausted for the full event list to be read. Additionally the `session` argument must now be specified as a keyword argument.
+
+### Fixes
+
+- The `load_aggregate` method of `meowmx.Client` didn't work for streams larger than 512. The breaking change mentioned above fixes this.
+
+### New Features
+
+- `meowmx.Client` has a new function named `iter_events` which returns a generator that loads events from the database in chunks as needed.
 - It's now possible to delete events by their aggregate ID with the method `delete_events`. All events can be deleted or only the "tail" of events (everything from some version until the end of the stream).
 
 
 ## [0.3.0] - 2026-05-26
 
-- Updates the `meoxmx.Client` `sub` method. It is now possible to create a subscription based on multiple aggregate types or subscribe to all events.
+- Updates the `meowmx.Client` `sub` method. It is now possible to create a subscription based on multiple aggregate types or subscribe to all events.
 
 ## [0.2.2] - 2025-10-23
 

@@ -200,7 +200,7 @@ class Client:
         )
 
     def get_aggregate_version(
-        self, session: common.Session, aggregate_type: str, aggregate_id: str
+        self, session: common.Session, aggregate_id: str
     ) -> t.Optional[int]:
         stmt = sqlalchemy.select(
             tables.EsAggregate.version,

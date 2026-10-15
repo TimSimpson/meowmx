@@ -113,9 +113,7 @@ def test_save_and_load_events(
 
     with subtests.test("load_events with default arguments"):
         # Confirm they look identical when loading
-        all_events_loaded = meow.load_events(
-            "meowmx-test", aggregate_id, limit=DEFAULT_LIMIT
-        )
+        all_events_loaded = meow.load_events(aggregate_id, limit=DEFAULT_LIMIT)
 
         assert not all_events_loaded.has_more
         assert expected_events == all_events_loaded.events
@@ -124,7 +122,6 @@ def test_save_and_load_events(
         # Confirm reversing the load is OK
 
         reversed_all_events_loaded = meow.load_events(
-            "meowmx-test",
             aggregate_id,
             reverse=True,
             limit=DEFAULT_LIMIT,
@@ -135,14 +132,12 @@ def test_save_and_load_events(
 
     with subtests.test("iter_events"):
         all_events_streamed = meow.iter_events(
-            "meowmx-test",
             aggregate_id,
         )
         assert expected_events == list(all_events_streamed)
 
     with subtests.test("iter_events with small chunk and limit"):
         all_events_streamed = meow.iter_events(
-            "meowmx-test",
             aggregate_id,
             limit=2,
             chunk_size=1,
@@ -153,7 +148,6 @@ def test_save_and_load_events(
         with pytest.raises(ValueError):
             list(
                 meow.iter_events(
-                    "meowmx-test",
                     aggregate_id,
                     limit=0,
                 )
@@ -163,17 +157,15 @@ def test_save_and_load_events(
         monkeypatch.setattr(client_module, "DEFAULT_LIMIT", 1)
 
         all_events_streamed = meow.iter_events(
-            "meowmx-test",
             aggregate_id,
         )
         assert expected_events == list(all_events_streamed)
 
     with subtests.test("delete events"):
-        deleted_events = meow.delete_events(aggregate_type, aggregate_id)
+        deleted_events = meow.delete_events(aggregate_id)
         assert deleted_events == 3
 
         all_events_streamed = meow.iter_events(
-            "meowmx-test",
             aggregate_id,
         )
         assert [] == list(all_events_streamed)
@@ -220,7 +212,7 @@ def test_save_and_load_events_with_session(
             )
 
             recorded_events, has_more = meow.load_events(
-                "meowmx-test", aggregate_id, session=session, limit=DEFAULT_LIMIT
+                aggregate_id, session=session, limit=DEFAULT_LIMIT
             )
 
     assert len(recorded_events) == 3
@@ -292,7 +284,7 @@ def test_save_and_load_events_with_session(
                 session=session,
             )
             recorded_events_2, has_more = meow.load_events(
-                "meowmx-test", aggregate_id, session=session, limit=DEFAULT_LIMIT
+                aggregate_id, session=session, limit=DEFAULT_LIMIT
             )
 
     expected_events.append(
@@ -332,7 +324,7 @@ def test_save_and_load_events_with_session(
                 session=session,
             )
             recorded_events_3, has_more = meow.load_events(
-                "meowmx-test", aggregate_id, session=session, limit=DEFAULT_LIMIT
+                aggregate_id, session=session, limit=DEFAULT_LIMIT
             )
 
     expected_events.append(
@@ -427,7 +419,7 @@ def test_concurrent_save_check(
     ]
 
     recorded_events_from_load, has_more = meow.load_events(
-        "meowmx-test", aggregate_id, limit=DEFAULT_LIMIT
+        aggregate_id, limit=DEFAULT_LIMIT
     )
 
     assert has_more is False
@@ -465,10 +457,7 @@ def test_concurrent_save_check(
 def test_delete_and_recreate(
     meow: meowmx.Client,
     new_uuid: t.Callable[[], str],
-    subtests: t.Any,
-    monkeypatch: t.Any,
 ) -> None:
-    aggregate_type = "meowmx-test"
     aggregate_id = new_uuid()
 
     def write_event(version: int) -> None:
@@ -477,7 +466,7 @@ def test_delete_and_recreate(
             aggregate_id,
             [
                 meowmx.NewEvent(
-                    event_type=aggregate_type,
+                    event_type="MeowMxTestEvent",
                     json=json.dumps(
                         {
                             "time": datetime.now().isoformat(),
@@ -490,12 +479,11 @@ def test_delete_and_recreate(
 
     write_event(0)
 
-    deleted_count = meow.delete_events(aggregate_type, aggregate_id)
+    deleted_count = meow.delete_events(aggregate_id)
 
     assert deleted_count == 1
     assert [] == list(
         meow.iter_events(
-            "meowmx-test",
             aggregate_id,
         )
     )
@@ -506,12 +494,11 @@ def test_delete_and_recreate(
     write_event(1)
     write_event(2)
 
-    deleted_count = meow.delete_events(aggregate_type, aggregate_id, from_version=1)
+    deleted_count = meow.delete_events(aggregate_id, from_version=1)
     assert deleted_count == 2
     assert 1 == len(
         list(
             meow.iter_events(
-                "meowmx-test",
                 aggregate_id,
             )
         )
@@ -526,15 +513,14 @@ def test_delete_and_recreate(
     for i in range(1, 30):
         write_event(i)
 
-    deleted_count = meow.delete_events(aggregate_type, aggregate_id, from_version=15)
+    deleted_count = meow.delete_events(aggregate_id, from_version=15)
     assert 15 == deleted_count
     assert 15 == len(
         list(
             meow.iter_events(
-                "meowmx-test",
                 aggregate_id,
             )
         )
     )
 
-    meow.delete_events(aggregate_type, aggregate_id)
+    meow.delete_events(aggregate_id)

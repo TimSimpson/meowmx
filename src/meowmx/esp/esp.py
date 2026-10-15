@@ -204,9 +204,9 @@ class Esp:
         return result
 
     def get_aggregate_version(
-        self, session: common.Session, aggregate_type: str, aggregate_id: str
+        self, session: common.Session, aggregate_id: str
     ) -> t.Optional[int]:
-        """Inserts the aggregate type into the table"""
+        """Gets the aggregate info from the es_aggregates table"""
         query = textwrap.dedent("""
             SELECT version
                 FROM   es_aggregates
@@ -214,7 +214,7 @@ class Esp:
             """)
         return session.execute(
             text(query),
-            {"aggregate_id": aggregate_id, "aggregate_type": aggregate_type},
+            {"aggregate_id": aggregate_id},
         ).scalar_one_or_none()
 
     def read_checkpoint_and_lock_subscription(

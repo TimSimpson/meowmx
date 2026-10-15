@@ -127,8 +127,8 @@ class Client:
 
     def delete_events(
         self,
-        aggregate_type: str,
         aggregate_id: str,
+        *,
         from_version: t.Optional[int] = None,
         session: t.Optional[common.Session] = None,
     ) -> int:
@@ -160,8 +160,8 @@ class Client:
 
     def iter_events(
         self,
-        aggregate_type: str,
         aggregate_id: str,
+        *,
         from_version: t.Optional[int] = None,
         to_version: t.Optional[int] = None,
         chunk_size: t.Optional[int] = None,
@@ -234,7 +234,6 @@ class Client:
 
     def load_events(
         self,
-        aggregate_type: str,
         aggregate_id: str,
         *,
         limit: int,
@@ -280,7 +279,6 @@ class Client:
         as a class field and have an __init__ which can accept `recorded_events`.
         """
         recorded_events = self.iter_events(
-            aggregate_type.aggregate_type,
             id,
             from_version=0,
             session=session,
@@ -330,9 +328,7 @@ class Client:
                 tx = contextlib.nullcontext()
             with tx:
                 if version is None:
-                    version = self._esp.get_aggregate_version(
-                        session_2, aggregate_type, aggregate_id
-                    )
+                    version = self._esp.get_aggregate_version(session_2, aggregate_id)
                     if version is None:
                         version = 0
                     else:

@@ -9,12 +9,6 @@ from meowmx.backoff import BackoffCalc
 def main() -> None:
     parser = argparse.ArgumentParser(description="read all events")
     parser.add_argument(
-        "--aggregate-type",
-        type=str,
-        default=None,
-        help="The aggregate type to read from. If left unspecified all events are read.",
-    )
-    parser.add_argument(
         "--aggregate-id",
         type=str,
         default=None,
@@ -52,13 +46,7 @@ def main() -> None:
         print("bad value for limit: 0", file=sys.stderr)
         sys.exit(1)
 
-    id_mode = args.aggregate_id or args.aggregate_type
-    if id_mode and not (args.aggregate_id and args.aggregate_type):
-        print(
-            "must specify both aggregate type and aggregate ID or neither",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    id_mode = args.aggregate_id is not None
 
     backoff = BackoffCalc(1, 5)
     while True:
@@ -67,7 +55,6 @@ def main() -> None:
             if id_mode:
                 events, has_more = meow.load_events(
                     aggregate_id=args.aggregate_id,
-                    aggregate_type=args.aggregate_type,
                     from_version=args.from_var,
                     to_version=args.to,
                     limit=args.limit,

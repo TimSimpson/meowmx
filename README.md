@@ -147,11 +147,7 @@ def build_read_model(events: t.Iterable[meowmx.RecordedEvent]) -> Order:
 # runs until the process is killed
 def start_subscription(meow: meowmx.Client) -> None:
     def handler(session: meowmx.Session, event: meowmx.RecordedEvent) -> None:
-        order_events = meow.iter_events(
-            event.aggregate_type, 
-            event.aggregate_id,
-            session=session,
-        )
+        order_events = meow.iter_events(event.aggregate_id, session=session)
         order = build_read_model(order_events)
         session.merge(order)
         # session is automatically committed by meowmx

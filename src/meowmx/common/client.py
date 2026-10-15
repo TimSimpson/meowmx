@@ -50,7 +50,7 @@ class Client(t.Protocol):
     ) -> int: ...
 
     def get_aggregate_version(
-        self, session: Session, aggregate_type: str, aggregate_id: str
+        self, session: Session, aggregate_id: str
     ) -> t.Optional[int]: ...
 
     def read_checkpoint_and_lock_subscription(

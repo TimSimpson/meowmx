@@ -92,7 +92,7 @@ def test_combined_read_model(
     )
 
     potato_events, has_more = meow.load_events(
-        aggregate_type, potato_id, from_version=0, limit=DEFAULT_LIMIT
+        potato_id, from_version=0, limit=DEFAULT_LIMIT
     )
     assert 1 == len(potato_events)
     assert not has_more
@@ -114,7 +114,7 @@ def test_combined_read_model(
         )
 
     potato_events, has_more = meow.load_events(
-        aggregate_type, potato_id, from_version=0, limit=DEFAULT_LIMIT
+        potato_id, from_version=0, limit=DEFAULT_LIMIT
     )
     assert 1 == len(potato_events)
     assert not has_more
@@ -134,7 +134,7 @@ def test_combined_read_model(
     )
 
     potato_events, has_more = meow.load_events(
-        aggregate_type, potato_id, from_version=0, limit=DEFAULT_LIMIT
+        potato_id, from_version=0, limit=DEFAULT_LIMIT
     )
     assert not has_more
     assert 2 == len(potato_events)
@@ -186,14 +186,13 @@ def test_combined_event_writes(
 
             # assert that a _different_ session cannot see this change.
             tree_events, has_more = meow.load_events(
-                aggregate_type_1, tree_id, from_version=0, limit=DEFAULT_LIMIT
+                tree_id, from_version=0, limit=DEFAULT_LIMIT
             )
             assert 0 == len(tree_events)
             assert not has_more
 
             # however, we can see it on the same session
             tree_events_2, has_more = meow.load_events(
-                aggregate_type_1,
                 tree_id,
                 from_version=0,
                 session=session,
@@ -222,13 +221,13 @@ def test_combined_event_writes(
             )
 
     tree_events, has_more = meow.load_events(
-        aggregate_type_1, tree_id, from_version=0, limit=DEFAULT_LIMIT
+        tree_id, from_version=0, limit=DEFAULT_LIMIT
     )
     assert 1 == len(tree_events)
     assert not has_more
 
     flower_events, has_more = meow.load_events(
-        aggregate_type_1, flower_id, from_version=0, limit=DEFAULT_LIMIT
+        flower_id, from_version=0, limit=DEFAULT_LIMIT
     )
     assert 1 == len(flower_events)
     assert not has_more
