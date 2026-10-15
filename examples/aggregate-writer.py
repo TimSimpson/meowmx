@@ -71,8 +71,8 @@ def main() -> None:
             random_index = int(random.random() * (len(aggregate_ids) - 1))
             aggregate_id = aggregate_ids[random_index]
             # take time to load events
-            existing_events = meow.load_events(
-                args.aggregate_type, aggregate_id, 0, limit=36500
+            existing_events = list(
+                meow.stream_events(args.aggregate_type, aggregate_id)
             )
             version = aggregate_versions[aggregate_id]
             version += 1

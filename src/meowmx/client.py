@@ -158,9 +158,10 @@ class Client:
 
     def load_all_events(
         self,
+        *,
         from_tx_id: t.Optional[int],
         to_tx_id: t.Optional[int],
-        limit: t.Optional[int],
+        limit: int,
         session: t.Optional[common.Session] = None,
     ) -> common.LoadResult:
         """Used to read _ALL_ events, regardless of aggregate ID or type.
@@ -170,9 +171,11 @@ class Client:
         general usage.
 
         Returns a list of events read, and a boolean indicating if there are
-        more left to read.
+        more left to read on the database. If True, callers can make the same
+        call with `from_tx_id` set to the last seen event tx_id plus one.
         """
-        limit = limit or DEFAULT_LIMIT
+        if limit < 1:
+            raise ValueError("`limit` argument must be > 1")
         with self._start_session_if_desired(session) as session:
             return self._esp.read_all_events(
                 session,
@@ -185,9 +188,10 @@ class Client:
         self,
         aggregate_type: str,
         aggregate_id: str,
+        *,
+        limit: int,
         from_version: t.Optional[int] = None,
         to_version: t.Optional[int] = None,
-        limit: t.Optional[int] = None,
         reverse: bool = False,
         session: t.Optional[common.Session] = None,
     ) -> common.LoadResult:
@@ -196,9 +200,11 @@ class Client:
         This returns the "stream" of events for an aggregate.
 
         Returns a list of events read, and a boolean indicating if there are
-        more left to read.
+        more left to read on the database. If True, callers can make the same
+        call with `from_version` set to the last seen event version plus one.
         """
-        limit = limit or DEFAULT_LIMIT
+        if limit < 1:
+            raise ValueError("`limit` argument must be > 1")
         if from_version is None and not reverse:
             from_version = 0
         with self._start_session_if_desired(session) as session2:
