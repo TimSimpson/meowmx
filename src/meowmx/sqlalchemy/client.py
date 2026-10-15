@@ -112,6 +112,72 @@ class Client:
         result = session.execute(stmt)
         return result.rowcount == 1
 
+    def delete_events_by_aggregate_id(
+        self,
+        session: common.Session,
+        aggregate_id: str,
+        from_version: t.Optional[int],
+    ) -> int:
+        lock_stmt = (
+            sqlalchemy.select(
+                tables.EsAggregate.version,
+            )
+            .where(tables.EsAggregate.id == aggregate_id)
+            .with_for_update()
+        )
+
+        lock_row = session.execute(lock_stmt).fetchone()
+        if lock_row is None:
+            return 0
+        expected_version = t.cast(int, lock_row.version)
+
+        if from_version is not None and from_version > expected_version:
+            # no versions that high, so just return
+            return 0
+
+        if from_version is None:
+            new_version = -1  # always delete it
+        else:
+            new_version = from_version - 1
+
+        # TODO: in a universe where we snapshots actually worked, they'd need
+        # to get deleted here.
+
+        events_stmt = sqlalchemy.delete(
+            tables.EsEvent,
+        ).where(
+            sqlalchemy.and_(
+                tables.EsEvent.aggregate_id == sqlalchemy.literal(aggregate_id),
+                (tables.EsEvent.version >= sqlalchemy.literal(from_version))
+                if from_version is not None
+                else sqlalchemy.true(),
+            )
+        )
+        result = session.execute(events_stmt).rowcount
+
+        if new_version >= 0:
+            update_stmt = (
+                sqlalchemy.update(tables.EsAggregate)
+                .where(
+                    tables.EsAggregate.id == aggregate_id,
+                    tables.EsAggregate.version == expected_version,
+                )
+                .values(version=new_version)
+            )
+            session.execute(update_stmt)
+        else:
+            delete_stmt = sqlalchemy.delete(
+                tables.EsAggregate,
+            ).where(
+                sqlalchemy.and_(
+                    tables.EsAggregate.id == aggregate_id,
+                    tables.EsAggregate.version == expected_version,
+                )
+            )
+            session.execute(delete_stmt).rowcount
+
+        return result
+
     def read_checkpoint_and_lock_subscription(
         self, session: t.Any, subscription_name: str
     ) -> t.Optional[common.SubCheckpoint]:
@@ -134,7 +200,7 @@ class Client:
         )
 
     def get_aggregate_version(
-        self, session: common.Session, aggregate_type: str, aggregate_id: str
+        self, session: common.Session, aggregate_id: str
     ) -> t.Optional[int]:
         stmt = sqlalchemy.select(
             tables.EsAggregate.version,
@@ -149,7 +215,7 @@ class Client:
         to_tx_id: t.Optional[int],
         limit: int,
         reverse: bool = False,
-    ) -> t.List[common.RecordedEvent]:
+    ) -> common.LoadResult:
         if to_tx_id is None and limit is None:
             raise ValueError(
                 "Neither to_tx_id nor limit is set – too many rows would be returned."
@@ -183,23 +249,28 @@ class Client:
                 if reverse
                 else tables.EsEvent.transaction_id.asc()
             )
-            .limit(limit)
+            .limit(limit + 1)
         )
 
         rows = session.execute(stmt).fetchall()
-
-        return [
-            common.RecordedEvent(
-                aggregate_type=row[0],
-                aggregate_id=row[3],
-                id=row[1],
-                tx_id=int(row[2]),  # cast back to int if needed
-                event_type=row[4],
-                json=row[5],
-                version=row[6],
+        result: t.List[common.RecordedEvent] = []
+        has_more = False
+        for row in rows:
+            if len(result) == limit:
+                has_more = True
+                break
+            result.append(
+                common.RecordedEvent(
+                    aggregate_type=row[0],
+                    aggregate_id=row[3],
+                    id=row[1],
+                    tx_id=int(row[2]),  # cast back to int if needed
+                    event_type=row[4],
+                    json=row[5],
+                    version=row[6],
+                )
             )
-            for row in rows
-        ]
+        return common.LoadResult(result, has_more)
 
     def read_events_by_aggregate_id(
         self,
@@ -209,7 +280,7 @@ class Client:
         from_version: t.Optional[int],
         to_version: t.Optional[int],
         reverse: bool = False,
-    ) -> t.List[common.RecordedEvent]:
+    ) -> common.LoadResult:
         stmt = (
             sqlalchemy.select(
                 tables.EsAggregate.aggregate_type,
@@ -239,21 +310,27 @@ class Client:
                 if reverse
                 else tables.EsEvent.version.asc()
             )
-            .limit(limit)
+            .limit(limit + 1)
         )
         rows = session.execute(stmt).fetchall()
-        return [
-            common.RecordedEvent(
-                aggregate_type=row[0],
-                aggregate_id=aggregate_id,
-                id=row[1],
-                tx_id=int(row[2]),
-                event_type=row[3],
-                json=row[4],
-                version=row[5],
+        result: t.List[common.RecordedEvent] = []
+        has_more = False
+        for row in rows:
+            if len(result) == limit:
+                has_more = True
+                break
+            result.append(
+                common.RecordedEvent(
+                    aggregate_type=row[0],
+                    aggregate_id=aggregate_id,
+                    id=row[1],
+                    tx_id=int(row[2]),
+                    event_type=row[3],
+                    json=row[4],
+                    version=row[5],
+                )
             )
-            for row in rows
-        ]
+        return common.LoadResult(result, has_more)
 
     def read_events_after_checkpoint(
         self,

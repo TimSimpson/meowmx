@@ -47,6 +47,11 @@ class RecordedEvent(NewEventRow):
         return self.json
 
 
+class LoadResult(t.NamedTuple):
+    events: t.List[RecordedEvent]
+    has_more: bool
+
+
 # this is `str` because the sql libraries think Python's int could mean
 # "smallint", which can't be cast to an XID8 which is used for the transaction
 # ID. The XID8 results are cast to text in the SQL queries, which becomes a

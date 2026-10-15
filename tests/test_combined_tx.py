@@ -10,11 +10,16 @@ from sqlalchemy import orm
 import meowmx
 
 
+DEFAULT_LIMIT = 512
+
+
 class Base(orm.DeclarativeBase):
     pass
 
 
 class Potato(Base):
+    """Represents the read model table for potatoes."""
+
     __tablename__ = "potatoes"
 
     id = orm.mapped_column(sqlalchemy.CHAR(64), primary_key=True)
@@ -86,8 +91,11 @@ def test_combined_read_model(
         raise_error=False,
     )
 
-    potato_events = meow.load_events(aggregate_type, potato_id, from_version=0)
-    # assert 1 == len(potato_events)
+    potato_events, has_more = meow.load_events(
+        potato_id, from_version=0, limit=DEFAULT_LIMIT
+    )
+    assert 1 == len(potato_events)
+    assert not has_more
     potato_rm = load_potato()
     assert potato_rm is not None
     assert potato_rm.version == 0
@@ -105,8 +113,11 @@ def test_combined_read_model(
             raise_error=True,
         )
 
-    potato_events = meow.load_events(aggregate_type, potato_id, from_version=0)
+    potato_events, has_more = meow.load_events(
+        potato_id, from_version=0, limit=DEFAULT_LIMIT
+    )
     assert 1 == len(potato_events)
+    assert not has_more
     potato_rm = load_potato()
     assert potato_rm is not None
     assert potato_rm.version == 0
@@ -122,7 +133,10 @@ def test_combined_read_model(
         raise_error=False,
     )
 
-    potato_events = meow.load_events(aggregate_type, potato_id, from_version=0)
+    potato_events, has_more = meow.load_events(
+        potato_id, from_version=0, limit=DEFAULT_LIMIT
+    )
+    assert not has_more
     assert 2 == len(potato_events)
     potato_rm = load_potato()
     assert potato_rm is not None
@@ -131,8 +145,17 @@ def test_combined_read_model(
 
 
 def test_combined_event_writes(
-    engine: meowmx.Engine, meow: meowmx.Client, new_uuid: t.Callable[[], str]
+    sql_url_cmd_opt: str,
+    engine: meowmx.Engine,
+    meow: meowmx.Client,
+    new_uuid: t.Callable[[], str],
 ) -> None:
+    if sql_url_cmd_opt.endswith(":memory:"):
+        raise pytest.skip(
+            "In memory SQLite dbs share a connection, so a second 'session' "
+            "is not possible and this test cannot be performed."
+        )
+
     Base.metadata.create_all(engine)
 
     aggregate_type_1 = "tree"
@@ -161,9 +184,24 @@ def test_combined_event_writes(
                 ],
             )
 
-            tree_events = meow.load_events(aggregate_type_1, tree_id, from_version=0)
+            # assert that a _different_ session cannot see this change.
+            tree_events, has_more = meow.load_events(
+                tree_id, from_version=0, limit=DEFAULT_LIMIT
+            )
             assert 0 == len(tree_events)
+            assert not has_more
 
+            # however, we can see it on the same session
+            tree_events_2, has_more = meow.load_events(
+                tree_id,
+                from_version=0,
+                session=session,
+                limit=DEFAULT_LIMIT,
+            )
+            assert 1 == len(tree_events_2)
+            assert not has_more
+
+            # Confirm a save to a different stream works
             meow.save_events(
                 aggregate_type_2,
                 flower_id,
@@ -182,6 +220,14 @@ def test_combined_event_writes(
                 ],
             )
 
-    tree_events = meow.load_events(aggregate_type_1, tree_id, from_version=0)
-
+    tree_events, has_more = meow.load_events(
+        tree_id, from_version=0, limit=DEFAULT_LIMIT
+    )
     assert 1 == len(tree_events)
+    assert not has_more
+
+    flower_events, has_more = meow.load_events(
+        flower_id, from_version=0, limit=DEFAULT_LIMIT
+    )
+    assert 1 == len(flower_events)
+    assert not has_more

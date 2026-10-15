@@ -7,14 +7,21 @@ import coolname  # type: ignore
 import pytest
 
 import meowmx
+from meowmx import client as client_module
 
 
 def _generate_slug() -> str:
     return t.cast(str, coolname.generate_slug())
 
 
+DEFAULT_LIMIT = 512
+
+
 def test_save_and_load_events(
-    meow: meowmx.Client, new_uuid: t.Callable[[], str]
+    meow: meowmx.Client,
+    new_uuid: t.Callable[[], str],
+    subtests: t.Any,
+    monkeypatch: t.Any,
 ) -> None:
     aggregate_type = "meowmx-test"
     aggregate_id = new_uuid()
@@ -45,10 +52,16 @@ def test_save_and_load_events(
             ),
         ),
     ]
-    recorded_events = meow.save_events("meowmx-test", aggregate_id, events, version=0)
-    actual_times = [json.loads(event.json)["time"] for event in recorded_events]
+    recorded_events_from_save_result = meow.save_events(
+        "meowmx-test", aggregate_id, events, version=0
+    )
+    actual_times = [
+        json.loads(event.json)["time"] for event in recorded_events_from_save_result
+    ]
 
-    assert recorded_events == [
+    # Confirm the save function returns the events we expect
+
+    expected_events = [
         meowmx.RecordedEvent(
             aggregate_type=aggregate_type,
             aggregate_id=aggregate_id,
@@ -91,6 +104,72 @@ def test_save_and_load_events(
         ),
     ]
 
+    reversed_expected_events = sorted(
+        expected_events, key=lambda r: r.version, reverse=True
+    )
+
+    with subtests.test("save result returns valid events"):
+        assert recorded_events_from_save_result == expected_events
+
+    with subtests.test("load_events with default arguments"):
+        # Confirm they look identical when loading
+        all_events_loaded = meow.load_events(aggregate_id, limit=DEFAULT_LIMIT)
+
+        assert not all_events_loaded.has_more
+        assert expected_events == all_events_loaded.events
+
+    with subtests.test("load_events with reverse"):
+        # Confirm reversing the load is OK
+
+        reversed_all_events_loaded = meow.load_events(
+            aggregate_id,
+            reverse=True,
+            limit=DEFAULT_LIMIT,
+        )
+
+        assert not reversed_all_events_loaded.has_more
+        assert reversed_expected_events == reversed_all_events_loaded.events
+
+    with subtests.test("iter_events"):
+        all_events_streamed = meow.iter_events(
+            aggregate_id,
+        )
+        assert expected_events == list(all_events_streamed)
+
+    with subtests.test("iter_events with small chunk and limit"):
+        all_events_streamed = meow.iter_events(
+            aggregate_id,
+            limit=2,
+            chunk_size=1,
+        )
+        assert expected_events[0:2] == list(all_events_streamed)
+
+    with subtests.test("iter_events with limit 0"):
+        with pytest.raises(ValueError):
+            list(
+                meow.iter_events(
+                    aggregate_id,
+                    limit=0,
+                )
+            )
+
+    with subtests.test("iter_events with low limits"):
+        monkeypatch.setattr(client_module, "DEFAULT_LIMIT", 1)
+
+        all_events_streamed = meow.iter_events(
+            aggregate_id,
+        )
+        assert expected_events == list(all_events_streamed)
+
+    with subtests.test("delete events"):
+        deleted_events = meow.delete_events(aggregate_id)
+        assert deleted_events == 3
+
+        all_events_streamed = meow.iter_events(
+            aggregate_id,
+        )
+        assert [] == list(all_events_streamed)
+
 
 def test_save_and_load_events_with_session(
     session_maker: meowmx.SessionMaker,
@@ -132,11 +211,12 @@ def test_save_and_load_events_with_session(
                 "meowmx-test", aggregate_id, events, version=0, session=session
             )
 
-            recorded_events = meow.load_events(
-                "meowmx-test", aggregate_id, session=session
+            recorded_events, has_more = meow.load_events(
+                aggregate_id, session=session, limit=DEFAULT_LIMIT
             )
 
     assert len(recorded_events) == 3
+    assert not has_more
     actual_times = [json.loads(event.json)["time"] for event in recorded_events]
 
     expected_events = [
@@ -203,8 +283,8 @@ def test_save_and_load_events_with_session(
                 version=3,
                 session=session,
             )
-            recorded_events_2 = meow.load_events(
-                "meowmx-test", aggregate_id, session=session
+            recorded_events_2, has_more = meow.load_events(
+                aggregate_id, session=session, limit=DEFAULT_LIMIT
             )
 
     expected_events.append(
@@ -223,6 +303,7 @@ def test_save_and_load_events_with_session(
         ),
     )
     assert expected_events == recorded_events_2
+    assert not has_more
 
     with session_maker() as session:
         with session.begin():
@@ -242,8 +323,8 @@ def test_save_and_load_events_with_session(
                 version=None,
                 session=session,
             )
-            recorded_events_3 = meow.load_events(
-                "meowmx-test", aggregate_id, session=session
+            recorded_events_3, has_more = meow.load_events(
+                aggregate_id, session=session, limit=DEFAULT_LIMIT
             )
 
     expected_events.append(
@@ -261,6 +342,7 @@ def test_save_and_load_events_with_session(
             version=4,
         ),
     )
+    assert not has_more
     assert expected_events == recorded_events_3
 
 
@@ -336,8 +418,11 @@ def test_concurrent_save_check(
         )
     ]
 
-    recorded_events_from_load = meow.load_events("meowmx-test", aggregate_id)
+    recorded_events_from_load, has_more = meow.load_events(
+        aggregate_id, limit=DEFAULT_LIMIT
+    )
 
+    assert has_more is False
     assert recorded_events_from_load == [
         meowmx.RecordedEvent(
             aggregate_type=aggregate_type,
@@ -367,3 +452,75 @@ def test_concurrent_save_check(
             version=1,
         ),
     ]
+
+
+def test_delete_and_recreate(
+    meow: meowmx.Client,
+    new_uuid: t.Callable[[], str],
+) -> None:
+    aggregate_id = new_uuid()
+
+    def write_event(version: int) -> None:
+        meow.save_events(
+            "meowmx-test",
+            aggregate_id,
+            [
+                meowmx.NewEvent(
+                    event_type="MeowMxTestEvent",
+                    json=json.dumps(
+                        {
+                            "time": datetime.now().isoformat(),
+                        }
+                    ),
+                ),
+            ],
+            version=version,
+        )
+
+    write_event(0)
+
+    deleted_count = meow.delete_events(aggregate_id)
+
+    assert deleted_count == 1
+    assert [] == list(
+        meow.iter_events(
+            aggregate_id,
+        )
+    )
+    with pytest.raises(meowmx.ExpectedVersionFailure):
+        write_event(1)
+
+    write_event(0)
+    write_event(1)
+    write_event(2)
+
+    deleted_count = meow.delete_events(aggregate_id, from_version=1)
+    assert deleted_count == 2
+    assert 1 == len(
+        list(
+            meow.iter_events(
+                aggregate_id,
+            )
+        )
+    )
+
+    with pytest.raises(meowmx.ExpectedVersionFailure):
+        write_event(0)
+
+    with pytest.raises(meowmx.ExpectedVersionFailure):
+        write_event(2)
+
+    for i in range(1, 30):
+        write_event(i)
+
+    deleted_count = meow.delete_events(aggregate_id, from_version=15)
+    assert 15 == deleted_count
+    assert 15 == len(
+        list(
+            meow.iter_events(
+                aggregate_id,
+            )
+        )
+    )
+
+    meow.delete_events(aggregate_id)

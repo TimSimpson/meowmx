@@ -61,13 +61,24 @@ class MutexLockedClient:
                 session, aggregate_id, expected_version, new_version
             )
 
+    def delete_events_by_aggregate_id(
+        self,
+        session: common.Session,
+        aggregate_id: str,
+        from_version: t.Optional[int],
+    ) -> int:
+        with self._mutex:
+            return self._client.delete_events_by_aggregate_id(
+                session,
+                aggregate_id,
+                from_version,
+            )
+
     def get_aggregate_version(
-        self, session: common.Session, aggregate_type: str, aggregate_id: str
+        self, session: common.Session, aggregate_id: str
     ) -> t.Optional[int]:
         with self._mutex:
-            return self._client.get_aggregate_version(
-                session, aggregate_type, aggregate_id
-            )
+            return self._client.get_aggregate_version(session, aggregate_id)
 
     def read_checkpoint_and_lock_subscription(
         self, session: t.Any, subscription_name: str
@@ -84,7 +95,7 @@ class MutexLockedClient:
         to_tx_id: t.Optional[int],
         limit: int,
         reverse: bool = False,
-    ) -> t.List[common.RecordedEvent]:
+    ) -> common.LoadResult:
         with self._mutex:
             return self._client.read_all_events(
                 session, from_tx_id, to_tx_id, limit, reverse
@@ -98,7 +109,7 @@ class MutexLockedClient:
         from_version: t.Optional[int],
         to_version: t.Optional[int],
         reverse: bool = False,
-    ) -> t.List[common.RecordedEvent]:
+    ) -> common.LoadResult:
         with self._mutex:
             return self._client.read_events_by_aggregate_id(
                 session, aggregate_id, limit, from_version, to_version, reverse

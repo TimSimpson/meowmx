@@ -120,10 +120,93 @@ class Esp:
         )
         return result.rowcount == 1  # type: ignore
 
+    def delete_events_by_aggregate_id(
+        self, session: common.Session, aggregate_id: str, from_version: t.Optional[int]
+    ) -> int:
+        # We need to lock the es_aggregates row first- if we start by deleting
+        # events, a competing update to events might update es_aggregates as
+        # we're deleting events and screw everything up.
+        lock_query = textwrap.dedent("""
+            SELECT version FROM es_aggregates WHERE id = :aggregate_id FOR UPDATE
+            """)
+        lock_stmt = text(lock_query).bindparams(bindparam("aggregate_id"))
+        lock_result = session.execute(lock_stmt, {"aggregate_id": aggregate_id})
+        lock_row = lock_result.fetchone()
+        if lock_row is None:
+            # Nothing exists, so nothing to do
+            return 0
+
+        expected_version = t.cast(int, lock_row.version)
+
+        if from_version is not None and from_version > expected_version:
+            # no versions that high, so just return
+            return 0
+
+        if from_version is None:
+            new_version = -1  # always delete it
+        else:
+            new_version = from_version - 1
+
+        # TODO: in a universe where we snapshots actually worked, they'd need
+        # to get deleted here.
+
+        events_query = textwrap.dedent("""
+            DELETE FROM es_events e WHERE
+            e.aggregate_id = :aggregate_id
+            AND (:from_version IS NULL OR e.version >= :from_version)
+            """)
+        events_stmt = text(events_query).bindparams(
+            bindparam("aggregate_id"),
+            bindparam("from_version", type_=Integer),
+        )
+        events_result = session.execute(
+            events_stmt,
+            {
+                "aggregate_id": aggregate_id,
+                "from_version": from_version,
+            },
+        )
+        result = t.cast(int, events_result.rowcount)  # type: ignore
+
+        if new_version >= 0:
+            update_query = textwrap.dedent(
+                """
+                    UPDATE es_aggregates
+                    SET version = :new_version
+                    WHERE ID = :aggregate_id
+                    AND version = :expected_version
+                    """
+            )
+            session.execute(
+                text(update_query),
+                {
+                    "new_version": new_version,
+                    "aggregate_id": aggregate_id,
+                    "expected_version": expected_version,
+                },
+            )
+        else:
+            delete_query = textwrap.dedent(
+                """
+                    DELETE FROM es_aggregates
+                    WHERE ID = :aggregate_id
+                    AND version = :expected_version
+                    """
+            )
+            session.execute(
+                text(delete_query),
+                {
+                    "aggregate_id": aggregate_id,
+                    "expected_version": expected_version,
+                },
+            )
+
+        return result
+
     def get_aggregate_version(
-        self, session: common.Session, aggregate_type: str, aggregate_id: str
+        self, session: common.Session, aggregate_id: str
     ) -> t.Optional[int]:
-        """Inserts the aggregate type into the table"""
+        """Gets the aggregate info from the es_aggregates table"""
         query = textwrap.dedent("""
             SELECT version
                 FROM   es_aggregates
@@ -131,7 +214,7 @@ class Esp:
             """)
         return session.execute(
             text(query),
-            {"aggregate_id": aggregate_id, "aggregate_type": aggregate_type},
+            {"aggregate_id": aggregate_id},
         ).scalar_one_or_none()
 
     def read_checkpoint_and_lock_subscription(
@@ -168,8 +251,11 @@ class Esp:
         to_tx_id: t.Optional[int],
         limit: int,
         reverse: bool = False,
-    ) -> t.List[common.RecordedEvent]:
-        """Reads all the events from the table via the transaction ID."""
+    ) -> common.LoadResult:
+        """Reads all the events from the table via the transaction ID.
+
+        Returns the events read and True if more events are available.
+        """
         if to_tx_id is None and limit is None:
             raise ValueError(
                 "Neither to_tx_id or limit are set. Too many rows would be returned."
@@ -201,7 +287,7 @@ class Esp:
         args = {
             "from_tx_id": from_tx_id,
             "to_tx_id": to_tx_id,
-            "limit": limit,
+            "limit": limit + 1,
         }
         result = session.execute(
             stmt,
@@ -209,7 +295,11 @@ class Esp:
         )
         rows = result.fetchall()
         events: t.List[common.RecordedEvent] = []
+        has_more = False
         for row in rows:
+            if len(events) >= limit:
+                has_more = True
+                break
             # Row order matches the SELECT list above:
             #   0 → id, 1 → tx_id (as string), 2 → event_type,
             #   3 → json data, 4 → version
@@ -225,7 +315,7 @@ class Esp:
                 )
             )
 
-        return events
+        return common.LoadResult(events, has_more)
 
     def read_events_by_aggregate_id(
         self,
@@ -235,7 +325,7 @@ class Esp:
         from_version: t.Optional[int],
         to_version: t.Optional[int],
         reverse: bool = False,
-    ) -> t.List[common.RecordedEvent]:
+    ) -> common.LoadResult:
         order = "DESC" if reverse else "ASC"
         query = textwrap.dedent(
             f"""
@@ -268,12 +358,16 @@ class Esp:
                 "aggregate_id": aggregate_id,
                 "from_version": from_version,
                 "to_version": to_version,
-                "limit": limit,
+                "limit": limit + 1,
             },
         )
         rows = result.fetchall()
         events: t.List[common.RecordedEvent] = []
+        has_more = False
         for row in rows:
+            if len(events) >= limit:
+                has_more = True
+                break
             # Row order matches the SELECT list above:
             #   0 → id, 1 → tx_id (as string), 2 → event_type,
             #   3 → json data, 4 → version
@@ -289,7 +383,7 @@ class Esp:
                 )
             )
 
-        return events
+        return common.LoadResult(events, has_more)
 
     def read_events_after_checkpoint(
         self,

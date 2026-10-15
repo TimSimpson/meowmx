@@ -46,6 +46,11 @@ class Client:
                 self._esp = sqlalchemy.MutexLockedClient(self._esp)
 
     def setup_tables(self, aggregate_id_column_type: t.Optional[str] = None) -> None:
+        """Creates tables needed by MeowMX.
+
+        This is meant to be called by whatever code in your project is
+        responsible for creating SQL tables. Only needs to be called once.
+        """
         self._esp.setup_tables(self._engine, aggregate_id_column_type)
 
     def _handle_subscription_events(
@@ -120,14 +125,105 @@ class Client:
         else:
             return self._session_maker()
 
+    def delete_events(
+        self,
+        aggregate_id: str,
+        *,
+        from_version: t.Optional[int] = None,
+        session: t.Optional[common.Session] = None,
+    ) -> int:
+        """Deletes events from the given aggregate ID.
+
+        Can delete all events or only events whose version is equal or greater
+        to `from_version` if that argument is specified.
+
+        Cannot leave a "hole" in the stream of events.
+
+        Returns the number of events deleted.
+        """
+        if from_version is None:
+            from_version = 0
+        with self._start_session_if_desired(session) as session2:
+            tx: contextlib.AbstractContextManager
+            if session is None:
+                # If we're controlling things, commit / rollback at the end of this.
+                tx = session2.begin()
+            else:
+                # If the user is controlling it, don't commit or rollback.
+                tx = contextlib.nullcontext()
+            with tx:
+                return self._esp.delete_events_by_aggregate_id(
+                    session2,
+                    aggregate_id=aggregate_id,
+                    from_version=from_version,
+                )
+
+    def iter_events(
+        self,
+        aggregate_id: str,
+        *,
+        from_version: t.Optional[int] = None,
+        to_version: t.Optional[int] = None,
+        chunk_size: t.Optional[int] = None,
+        limit: t.Optional[int] = None,
+        session: t.Optional[common.Session] = None,
+    ) -> t.Iterator[common.RecordedEvent]:
+        """Loads all events by the given aggregate ID.
+
+        This returns an iterator of events for an aggregate. The intention is
+        whatever is processing the loop expects to read back all events under
+        the given aggregate ID, meaning additional calls to load events from
+        the database could be made as the events are iterated.
+        """
+        if from_version is None:
+            from_version = 0
+
+        if limit is not None and limit < 1:
+            raise ValueError("`limit` argument must be None or > 0")
+
+        chunk_size = chunk_size or DEFAULT_LIMIT
+        if limit is not None:
+            chunk_size = min(chunk_size, limit)
+        count = 0
+        with self._start_session_if_desired(session) as session2:
+            has_more = True
+            while has_more:
+                rows, has_more = self._esp.read_events_by_aggregate_id(
+                    session2,
+                    aggregate_id=aggregate_id,
+                    limit=chunk_size or DEFAULT_LIMIT,
+                    from_version=from_version,
+                    to_version=to_version,
+                    reverse=False,
+                )
+                for row in rows:
+                    yield row
+                    count += 1
+                    if limit is not None and count >= limit:
+                        return
+                if has_more:
+                    from_version = rows[-1].version + 1
+
     def load_all_events(
         self,
+        *,
         from_tx_id: t.Optional[int],
         to_tx_id: t.Optional[int],
-        limit: t.Optional[int],
+        limit: int,
         session: t.Optional[common.Session] = None,
-    ) -> t.List[common.RecordedEvent]:
-        limit = limit or DEFAULT_LIMIT
+    ) -> common.LoadResult:
+        """Used to read _ALL_ events, regardless of aggregate ID or type.
+
+        Can be paged by transaction IDs. Useful for scrolling through all
+        events if necessary to manage an application, but not intended for
+        general usage.
+
+        Returns a list of events read, and a boolean indicating if there are
+        more left to read on the database. If True, callers can make the same
+        call with `from_tx_id` set to the last seen event tx_id.
+        """
+        if limit < 1:
+            raise ValueError("`limit` argument must be > 0")
         with self._start_session_if_desired(session) as session:
             return self._esp.read_all_events(
                 session,
@@ -138,18 +234,28 @@ class Client:
 
     def load_events(
         self,
-        aggregate_type: str,
         aggregate_id: str,
+        *,
+        limit: int,
         from_version: t.Optional[int] = None,
         to_version: t.Optional[int] = None,
-        limit: t.Optional[int] = None,
         reverse: bool = False,
         session: t.Optional[common.Session] = None,
-    ) -> t.List[common.RecordedEvent]:
-        limit = limit or DEFAULT_LIMIT
+    ) -> common.LoadResult:
+        """Loads all events by the given aggregate ID.
+
+        This returns the "stream" of events for an aggregate.
+
+        Returns a list of events read, and a boolean indicating if there are
+        more left to read on the database. If True, callers can make the same
+        call with `from_version` set to the last seen event version plus one
+        (unless reverse is True, in which case `to_version` should be set to
+        the last seen event version plus nothing).
+        """
+        if limit < 1:
+            raise ValueError("`limit` argument must be > 0")
         if from_version is None and not reverse:
             from_version = 0
-
         with self._start_session_if_desired(session) as session2:
             return self._esp.read_events_by_aggregate_id(
                 session2,
@@ -164,15 +270,18 @@ class Client:
         self,
         aggregate_type: t.Type[LoadableAggregateType],
         id: str,
+        *,
         session: t.Optional[common.Session] = None,
     ) -> LoadableAggregateType:
-        """Constructs an aggregate by loading it's events.
+        """Constructs an aggregate by loading its events.
 
-        To support this, the type passed must define it's aggregate_type string
+        To support this, the type passed must define its aggregate_type string
         as a class field and have an __init__ which can accept `recorded_events`.
         """
-        recorded_events = self.load_events(
-            aggregate_type.aggregate_type, id, from_version=0, session=session
+        recorded_events = self.iter_events(
+            id,
+            from_version=0,
+            session=session,
         )
         return aggregate_type(recorded_events=recorded_events)
 
@@ -219,9 +328,7 @@ class Client:
                 tx = contextlib.nullcontext()
             with tx:
                 if version is None:
-                    version = self._esp.get_aggregate_version(
-                        session_2, aggregate_type, aggregate_id
-                    )
+                    version = self._esp.get_aggregate_version(session_2, aggregate_id)
                     if version is None:
                         version = 0
                     else:
@@ -268,6 +375,18 @@ class Client:
         max_sleep_time: int = 1,
         stop_signal: t.Optional[threading.Event] = None,
     ) -> None:
+        """Creates or reconnects to a subscription. Blocks but calls `handler`.
+
+        A subscription can be by one or more aggregate types, or by _all_
+        events ever written. The subscription name must be globally unique as
+        it is persistent. Calling this again with the same subscription name
+        will pick up the subscription where it left off.
+
+        If you're curious how this works, see postgresql-event-sourcing,
+        the repo every good idea in this project was copied from.
+
+        https://github.com/eugene-khyst/postgresql-event-sourcing
+        """
         backoff = BackoffCalc(1, max_sleep_time)
         while stop_signal is None or not stop_signal.is_set():
             processed = self._handle_subscription_events(
@@ -290,6 +409,7 @@ class Client:
         max_sleep_time: int = 1,
         stop_signal: t.Optional[threading.Event] = None,
     ) -> None:
+        """Identical to `sub` but more obviously subscribes to all events."""
         self.sub(
             subscription_name=subscription_name,
             handler=handler,
