@@ -125,6 +125,37 @@ class Client:
         else:
             return self._session_maker()
 
+    def delete_events(
+        self,
+        aggregate_type: str,
+        aggregate_id: str,
+        from_version: t.Optional[int] = None,
+        session: t.Optional[common.Session] = None,
+    ) -> int:
+        """Loads all events by the given aggregate ID.
+
+        This returns the "stream" of events for an aggregate.
+
+        Returns a list of events read, and a boolean indicating if there are
+        more left to read.
+        """
+        if from_version is None:
+            from_version = 0
+        with self._start_session_if_desired(session) as session2:
+            tx: contextlib.AbstractContextManager
+            if session is None:
+                # If we're controlling things, commit / rollback at the end of this.
+                tx = session2.begin()
+            else:
+                # If the user is controlling it, don't commit or rollback.
+                tx = contextlib.nullcontext()
+            with tx:
+                return self._esp.delete_events_by_aggregate_id(
+                    session2,
+                    aggregate_id=aggregate_id,
+                    from_version=from_version,
+                )
+
     def load_all_events(
         self,
         from_tx_id: t.Optional[int],

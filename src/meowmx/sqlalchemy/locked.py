@@ -61,6 +61,19 @@ class MutexLockedClient:
                 session, aggregate_id, expected_version, new_version
             )
 
+    def delete_events_by_aggregate_id(
+        self,
+        session: common.Session,
+        aggregate_id: str,
+        from_version: t.Optional[int],
+    ) -> int:
+        with self._mutex:
+            return self._client.delete_events_by_aggregate_id(
+                session,
+                aggregate_id,
+                from_version,
+            )
+
     def get_aggregate_version(
         self, session: common.Session, aggregate_type: str, aggregate_id: str
     ) -> t.Optional[int]:

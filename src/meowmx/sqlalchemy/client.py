@@ -112,6 +112,72 @@ class Client:
         result = session.execute(stmt)
         return result.rowcount == 1
 
+    def delete_events_by_aggregate_id(
+        self,
+        session: common.Session,
+        aggregate_id: str,
+        from_version: t.Optional[int],
+    ) -> int:
+        lock_stmt = (
+            sqlalchemy.select(
+                tables.EsAggregate.version,
+            )
+            .where(tables.EsAggregate.id == aggregate_id)
+            .with_for_update(skip_locked=True)
+        )
+
+        lock_row = session.execute(lock_stmt).fetchone()
+        if lock_row is None:
+            return 0
+        expected_version = t.cast(int, lock_row.version)
+
+        if from_version is not None and from_version > expected_version:
+            # no versions that high, so just return
+            return 0
+
+        if from_version is None:
+            new_version = -1  # always delete it
+        else:
+            new_version = from_version - 1
+
+        # TODO: in a universe where we snapshots actually worked, they'd need
+        # to get deleted here.
+
+        events_stmt = sqlalchemy.delete(
+            tables.EsEvent,
+        ).where(
+            sqlalchemy.and_(
+                tables.EsEvent.aggregate_id == sqlalchemy.literal(aggregate_id),
+                (tables.EsEvent.version >= sqlalchemy.literal(from_version))
+                if from_version is not None
+                else sqlalchemy.true(),
+            )
+        )
+        result = session.execute(events_stmt).rowcount
+
+        if new_version >= 0:
+            update_stmt = (
+                sqlalchemy.update(tables.EsAggregate)
+                .where(
+                    tables.EsAggregate.id == aggregate_id,
+                    tables.EsAggregate.version == expected_version,
+                )
+                .values(version=new_version)
+            )
+            session.execute(update_stmt)
+        else:
+            delete_stmt = sqlalchemy.delete(
+                tables.EsAggregate,
+            ).where(
+                sqlalchemy.and_(
+                    tables.EsAggregate.id == aggregate_id,
+                    tables.EsAggregate.version == expected_version,
+                )
+            )
+            session.execute(delete_stmt).rowcount
+
+        return result
+
     def read_checkpoint_and_lock_subscription(
         self, session: t.Any, subscription_name: str
     ) -> t.Optional[common.SubCheckpoint]:

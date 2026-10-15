@@ -150,6 +150,16 @@ def test_save_and_load_events(
         )
         assert expected_events == list(all_events_streamed)
 
+    with subtests.test("delete events"):
+        deleted_events = meow.delete_events(aggregate_type, aggregate_id)
+        assert deleted_events == 3
+
+        all_events_streamed = meow.stream_events(
+            "meowmx-test",
+            aggregate_id,
+        )
+        assert [] == list(all_events_streamed)
+
 
 def test_save_and_load_events_with_session(
     session_maker: meowmx.SessionMaker,
@@ -430,3 +440,81 @@ def test_concurrent_save_check(
             version=1,
         ),
     ]
+
+
+def test_delete_and_recreate(
+    meow: meowmx.Client,
+    new_uuid: t.Callable[[], str],
+    subtests: t.Any,
+    monkeypatch: t.Any,
+) -> None:
+    aggregate_type = "meowmx-test"
+    aggregate_id = new_uuid()
+
+    def write_event(version: int) -> None:
+        meow.save_events(
+            "meowmx-test",
+            aggregate_id,
+            [
+                meowmx.NewEvent(
+                    event_type=aggregate_type,
+                    json=json.dumps(
+                        {
+                            "time": datetime.now().isoformat(),
+                        }
+                    ),
+                ),
+            ],
+            version=version,
+        )
+
+    write_event(0)
+
+    deleted_count = meow.delete_events(aggregate_type, aggregate_id)
+
+    assert deleted_count == 1
+    assert [] == list(
+        meow.stream_events(
+            "meowmx-test",
+            aggregate_id,
+        )
+    )
+    with pytest.raises(meowmx.ExpectedVersionFailure):
+        write_event(1)
+
+    write_event(0)
+    write_event(1)
+    write_event(2)
+
+    deleted_count = meow.delete_events(aggregate_type, aggregate_id, from_version=1)
+    assert deleted_count == 2
+    assert 1 == len(
+        list(
+            meow.stream_events(
+                "meowmx-test",
+                aggregate_id,
+            )
+        )
+    )
+
+    with pytest.raises(meowmx.ExpectedVersionFailure):
+        write_event(0)
+
+    with pytest.raises(meowmx.ExpectedVersionFailure):
+        write_event(2)
+
+    for i in range(1, 30):
+        write_event(i)
+
+    deleted_count = meow.delete_events(aggregate_type, aggregate_id, from_version=15)
+    assert 15 == deleted_count
+    assert 15 == len(
+        list(
+            meow.stream_events(
+                "meowmx-test",
+                aggregate_id,
+            )
+        )
+    )
+
+    meow.delete_events(aggregate_type, aggregate_id)

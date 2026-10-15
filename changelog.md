@@ -2,6 +2,8 @@
 
 ## [0.4.0] - 2026-08-XX
 
+- It's now possible to delete events by their aggregate ID with `delete_events`. All events can be deleted or only the "tail" of events (everything from some version forward).
+- `load_aggregate` has changed substantially: it now returns an iterator which calls the database to load more events if they are found. This fixes a bug where aggregates with more than 512 events would stop being read. This same functionality is available via `stream_events` which returns an iterator directly.
 - The `load_events` and `load_all_events` of meowmx.Client both had _breaking_ changes: `limit` is now a non-optional keyword, and the return values of both are tuples, where the first value is the list of events (like before) and the second is a boolean value that is `True` if there are more rows to return. This makes it more obvious to the caller that they may be expected to call these methods again to fetch the full list.
 - The `load_aggregate` method _also_ has a breaking change: instead of accepting a list, the Aggregate type is expected to take an Iterator. This allows the stream to load in full in the case of large aggregates.
 

@@ -120,6 +120,89 @@ class Esp:
         )
         return result.rowcount == 1  # type: ignore
 
+    def delete_events_by_aggregate_id(
+        self, session: common.Session, aggregate_id: str, from_version: t.Optional[int]
+    ) -> int:
+        # We need to lock the es_aggregates row first- if we start by deleting
+        # events, a competing update to events might update es_aggregates as
+        # we're deleting events and screw everything up.
+        lock_query = textwrap.dedent("""
+            SELECT version FROM es_aggregates WHERE id = :aggregate_id FOR UPDATE
+            """)
+        lock_stmt = text(lock_query).bindparams(bindparam("aggregate_id"))
+        lock_result = session.execute(lock_stmt, {"aggregate_id": aggregate_id})
+        lock_row = lock_result.fetchone()
+        if lock_row is None:
+            # Nothing exists, so nothing to do
+            return 0
+
+        expected_version = t.cast(int, lock_row.version)
+
+        if from_version is not None and from_version > expected_version:
+            # no versions that high, so just return
+            return 0
+
+        if from_version is None:
+            new_version = -1  # always delete it
+        else:
+            new_version = from_version - 1
+
+        # TODO: in a universe where we snapshots actually worked, they'd need
+        # to get deleted here.
+
+        events_query = textwrap.dedent("""
+            DELETE FROM es_events e WHERE
+            e.aggregate_id = :aggregate_id
+            AND (:from_version IS NULL OR e.version >= :from_version)
+            """)
+        events_stmt = text(events_query).bindparams(
+            bindparam("aggregate_id"),
+            bindparam("from_version", type_=Integer),
+        )
+        events_result = session.execute(
+            events_stmt,
+            {
+                "aggregate_id": aggregate_id,
+                "from_version": from_version,
+            },
+        )
+        result = t.cast(int, events_result.rowcount)  # type: ignore
+
+        if new_version >= 0:
+            update_query = textwrap.dedent(
+                """
+                    UPDATE es_aggregates
+                    SET version = :new_version
+                    WHERE ID = :aggregate_id
+                    AND version = :expected_version
+                    """
+            )
+            session.execute(
+                text(update_query),
+                {
+                    "new_version": new_version,
+                    "aggregate_id": aggregate_id,
+                    "expected_version": expected_version,
+                },
+            )
+        else:
+            delete_query = textwrap.dedent(
+                """
+                    DELETE FROM es_aggregates
+                    WHERE ID = :aggregate_id
+                    AND version = :expected_version
+                    """
+            )
+            session.execute(
+                text(delete_query),
+                {
+                    "aggregate_id": aggregate_id,
+                    "expected_version": expected_version,
+                },
+            )
+
+        return result
+
     def get_aggregate_version(
         self, session: common.Session, aggregate_type: str, aggregate_id: str
     ) -> t.Optional[int]:

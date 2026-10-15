@@ -42,6 +42,13 @@ class Client(t.Protocol):
         new_version: int,
     ) -> bool: ...
 
+    def delete_events_by_aggregate_id(
+        self,
+        session: Session,
+        aggregate_id: str,
+        from_version: t.Optional[int],
+    ) -> int: ...
+
     def get_aggregate_version(
         self, session: Session, aggregate_type: str, aggregate_id: str
     ) -> t.Optional[int]: ...
