@@ -132,12 +132,14 @@ class Client:
         from_version: t.Optional[int] = None,
         session: t.Optional[common.Session] = None,
     ) -> int:
-        """Loads all events by the given aggregate ID.
+        """Deletes events from the given aggregate ID.
 
-        This returns the "stream" of events for an aggregate.
+        Can delete all events or only events whose version is equal or greater
+        to `from_version` if that argument is specified.
 
-        Returns a list of events read, and a boolean indicating if there are
-        more left to read.
+        Cannot leave a "hole" in the stream of events.
+
+        Returns the number of events deleted.
         """
         if from_version is None:
             from_version = 0
@@ -175,6 +177,9 @@ class Client:
         """
         if from_version is None:
             from_version = 0
+
+        if limit is not None and limit < 1:
+            raise ValueError("`limit` argument must be None or > 0")
 
         chunk_size = chunk_size or DEFAULT_LIMIT
         if limit is not None:
@@ -218,7 +223,7 @@ class Client:
         call with `from_tx_id` set to the last seen event tx_id plus one.
         """
         if limit < 1:
-            raise ValueError("`limit` argument must be > 1")
+            raise ValueError("`limit` argument must be > 0")
         with self._start_session_if_desired(session) as session:
             return self._esp.read_all_events(
                 session,
@@ -244,10 +249,12 @@ class Client:
 
         Returns a list of events read, and a boolean indicating if there are
         more left to read on the database. If True, callers can make the same
-        call with `from_version` set to the last seen event version plus one.
+        call with `from_version` set to the last seen event version plus one
+        (unless reverse is True, in which case `to_version` should be set to
+        the last seen event version plus nothing).
         """
         if limit < 1:
-            raise ValueError("`limit` argument must be > 1")
+            raise ValueError("`limit` argument must be > 0")
         if from_version is None and not reverse:
             from_version = 0
         with self._start_session_if_desired(session) as session2:
@@ -267,9 +274,9 @@ class Client:
         *,
         session: t.Optional[common.Session] = None,
     ) -> LoadableAggregateType:
-        """Constructs an aggregate by loading it's events.
+        """Constructs an aggregate by loading its events.
 
-        To support this, the type passed must define it's aggregate_type string
+        To support this, the type passed must define its aggregate_type string
         as a class field and have an __init__ which can accept `recorded_events`.
         """
         recorded_events = self.iter_events(

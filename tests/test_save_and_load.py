@@ -149,6 +149,16 @@ def test_save_and_load_events(
         )
         assert expected_events[0:2] == list(all_events_streamed)
 
+    with subtests.test("iter_events with limit 0"):
+        with pytest.raises(ValueError):
+            list(
+                meow.iter_events(
+                    "meowmx-test",
+                    aggregate_id,
+                    limit=0,
+                )
+            )
+
     with subtests.test("iter_events with low limits"):
         monkeypatch.setattr(client_module, "DEFAULT_LIMIT", 1)
 
