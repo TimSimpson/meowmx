@@ -20,9 +20,9 @@ Also, check out this cat!
 
 Think of how many systems where different components communicate by passing events. Usually you have some system that gets notified of a change or otherwise spurred to action by an event payload. It then loads a bunch of persisted data, does some stuff, and moves on.
 
-The thing is quite often the persisted data should be the event itself. For instance let's say you have multiple events concerning "orders" in a system, ie a customer initiates an order, an order is confirmed, an order is shipped, etc. The traditional way to handle this is to model the current state of the order as a row in a SQL database. Then you have all these event handlers (maybe they're Lambda functions, maybe they listen to rabbit, etc) noifying components in a modern system which all then have to load the current order row, figure out how it should be modified, consider if another component has also updated the row, etc.
+The thing is quite often the persisted data should be the event itself. For instance let's say you have multiple events concerning "orders" in a system, ie a customer initiates an order, an order is confirmed, an order is shipped, etc. The traditional way to handle this is to model the current state of the order as a row in a SQL database. Then you have all these event handlers (maybe they're Lambda functions, maybe they listen to rabbit, etc) notifying components in a modern system which all then have to load the current order row, figure out how it should be modified, consider if another component has also updated the row, etc.
 
-To make a gross simplification event-sourcing just says hey maybe all those events _are_ the persisted state; just load them all to figure out what the current situation is, make an update to the same set of events, and as a cherry on top use optimistic concurrency so the update fails if we find some other system updated our set of events between the time we read them just know and when we went to write them, in which case we'll cancle our write, reload all the events and try this logic again.
+To make a gross simplification event-sourcing just says hey maybe all those events _are_ the persisted state; just load them all to figure out what the current situation is, make an update to the same set of events, and as a cherry on top use optimistic concurrency so the update fails if we find some other system updated our set of events between the time we read them just now and when we went to write them, in which case we'll cancel our write, reload all the events and try this logic again.
 
 There's also the notion of aggregates, which are basically objects that can be constructed by reading a set of events. In my experience that kind of "helper" code is extremely easy to write but obscures the basic utility of event sourcing libraries like this one. This project offers a helper to save and load aggregates using a simple protocol to get the pending set of events from any object. For details on this see [this test](tests/test_aggregate.py).
 
@@ -49,7 +49,7 @@ meow = meowmx.Client(engine=engine, session_maker=session_maker)
 
 ### Initial table setup
 
-To initially create the tables used by meowmx, call `meowmx.setup_tables()`. 
+To initially create the tables used by meowmx, call `meow.setup_tables()`. 
 
 ```py
 meow.setup_tables()
@@ -70,27 +70,32 @@ For a production ready app you probably already have a method of standing up you
 Call meow.save_events to persist / publish events:
 
 ```py
+from datetime import datetime
+import json
+
+
+customer_id = "<customer-id-here>"
 order_id = "<order-id-here>"
 order_created = meowmx.NewEvent(
     event_type="OrderCreated",
-    json={
+    json=json.dumps({
         "customer_id": customer_id,
         "order_id": order_id,
         "time": datetime.now().isoformat(),
-    },
+    }),
 )
 meow.save_events("order", order_id, [order_created], version=0)
 
 # save a second event
 
-order_created = meowmx.NewEvent(
+order_shipped = meowmx.NewEvent(
     event_type="OrderShipped",
-    json={
+    json=json.dumps({
         "order_id": order_id,
         "time": datetime.now().isoformat(),
-    },
+    }),
 )
-meow.save_events("order", order_id, [order_created], version=1)
+meow.save_events("order", order_id, [order_shipped], version=1)
 ```
 
 ### Subscribing to Events
@@ -100,7 +105,19 @@ Let's say you want to create a read model for an aggregate that is updated every
 One way to do that is by subscribing to all changes in the events from another process:
 
 ```py
+import logging
+import typing as t
+
+import sqlalchemy
 from sqlalchemy import orm
+
+
+log = logging.getLogger(__name__)
+
+
+class Base(orm.DeclarativeBase):
+    pass
+
 
 class Order(Base):
     __tablename__ = "orders"
@@ -108,8 +125,9 @@ class Order(Base):
     id = orm.mapped_column(sqlalchemy.CHAR(20), primary_key=True)
     version = orm.mapped_column(sqlalchemy.Integer, nullable=False)
     customer_id = orm.mapped_column(sqlalchemy.String, nullable=False)
+    shipped = orm.mapped_column(sqlalchemy.Boolean, nullable=False)
 
-def build_read_model(events: list[meowmx.RecordedEvent]) -> Order:
+def build_read_model(events: t.Iterable[meowmx.RecordedEvent]) -> Order:
     order = Order()
     for event in events:
         if event.event_type == "OrderCreated":
@@ -129,17 +147,21 @@ def build_read_model(events: list[meowmx.RecordedEvent]) -> Order:
 # runs until the process is killed
 def start_subscription(meow: meowmx.Client) -> None:
     def handler(session: meowmx.Session, event: meowmx.RecordedEvent) -> None:
-        order_events = meow.load(event.aggregate_type, event.aggregate_id)
+        order_events = meow.iter_events(
+            event.aggregate_type, 
+            event.aggregate_id,
+            session=session,
+        )
         order = build_read_model(order_events)
         session.merge(order)
-        session.commit()
+        # session is automatically committed by meowmx
 
     meow.sub(
         subscription_name="order-rm-builder", 
-        aggregate_name="order", 
+        aggregate_types=["order"], 
         batch_size=10,
         max_sleep_time=30,
-        handler=handler: 
+        handler=handler
     )
 
 

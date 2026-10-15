@@ -220,7 +220,7 @@ class Client:
 
         Returns a list of events read, and a boolean indicating if there are
         more left to read on the database. If True, callers can make the same
-        call with `from_tx_id` set to the last seen event tx_id plus one.
+        call with `from_tx_id` set to the last seen event tx_id.
         """
         if limit < 1:
             raise ValueError("`limit` argument must be > 0")
