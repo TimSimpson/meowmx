@@ -123,7 +123,7 @@ class Client:
                 tables.EsAggregate.version,
             )
             .where(tables.EsAggregate.id == aggregate_id)
-            .with_for_update(skip_locked=True)
+            .with_for_update()
         )
 
         lock_row = session.execute(lock_stmt).fetchone()
