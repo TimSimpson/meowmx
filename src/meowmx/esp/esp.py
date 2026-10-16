@@ -254,9 +254,6 @@ class Esp:
             kwvals,
         )
         rows = result.fetchall()
-        if rows is None:
-            return common.ListAggregateInfoResult([], False)
-
         aggregates: t.List[common.AggregateInfo] = []
         next_id: t.Optional[str] = None
         for row in rows:
