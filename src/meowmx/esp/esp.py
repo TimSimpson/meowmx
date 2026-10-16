@@ -230,7 +230,7 @@ class Esp:
                 id, version, aggregate_type
             FROM es_aggregates a
             WHERE (:aggregate_type IS NULL OR a.aggregate_type = :aggregate_type)
-            AND  (:from_id IS NULL OR a.id >= :from_id)
+            AND  (:from_id IS NULL OR CAST(a.id as VARCHAR) >= :from_id)
             ORDER BY id
             LIMIT :limit
             """
