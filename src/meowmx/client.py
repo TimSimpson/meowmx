@@ -219,6 +219,10 @@ class Client:
 
         This can be useful in contexts where you want to manage all aggregates
         and don't have a separate read model on hand.
+
+        `from_id` is inclusive and is just the starting aggregate_id to return.
+        If more data is found beyond `limit` then `next` on the result type will
+        contain the value to use for `from_id` to get the next page.
         """
         if limit < 1:
             raise ValueError("`limit` argument must be > 0")

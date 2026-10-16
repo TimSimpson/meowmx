@@ -1,6 +1,7 @@
 docker := env_var_or_default("DOCKER_CLI", "docker")
 docker_container := 'postgres-meowmx'
 db_name := "meowmx"
+db_name_uuid := "meowmx-uuid"
 db_user := "meowmx"
 db_password := "meowmx"
 
@@ -24,7 +25,11 @@ setup:
     uv pip install psycopg[binary]
 
 start-docker-db:
+    #!/usr/bin/env bash
+    set -euo pipefail
     {{ docker }} run -d --name '{{ docker_container }}' -e 'POSTGRES_PASSWORD={{ db_password }}' -e 'POSTGRES_USER={{ db_user }}' -e 'POSTGRES_DB={{ db_name }}' -p 5445:5432 docker.io/postgres
+    sleep 10  # wait for DB to be ready
+    {{ docker }} exec -i '{{ docker_container }}' createdb -U '{{ db_user }}' '{{ db_name_uuid }}'
 
 
 clean-sqlite:
@@ -37,6 +42,10 @@ test:
 
 test-psql:
     uv run -- pytest -vv --sql-type postgresql --sql-url 'postgresql+psycopg://{{ db_user }}:{{ db_password }}@localhost:5445/{{ db_name }}?sslmode=disable' --uuid-type 'char 36' --iterations 1
+
+
+test-psql-uuid:
+    uv run -- pytest -vv --sql-type postgresql --sql-url 'postgresql+psycopg://{{ db_user }}:{{ db_password }}@localhost:5445/{{ db_name_uuid }}?sslmode=disable' --uuid-type 'uuid' --iterations 1
 
 test-subs *args:
     uv run -- pytest -vv --sql-type sqlite --sql-url 'postgresql+psycopg://{{ db_user }}:{{ db_password }}@localhost:5445/{{ db_name }}?sslmode=disable' --uuid-type 'char 36' tests/test_subs.py {{ args }}
@@ -61,6 +70,9 @@ test-coverage:
 usql:
     PAGER=cat usql 'postgres://{{ db_user }}:{{ db_password }}@localhost:5445/{{ db_name }}'
 
+usql-uuid:
+    PAGER=cat usql 'postgres://{{ db_user }}:{{ db_password }}@localhost:5445/{{ db_name_uuid }}'
+
 
 # Backs up the docker DB to a dump file
 dump-docker-db:
@@ -71,12 +83,14 @@ dump-docker-db:
     {{ docker }} exec '{{ docker_container }}' pg_dump -U '{{ db_user }}' -d '{{ db_name }}' -Fc > "${dump_file}"
     echo "Wrote to ${dump_file}."
 
+# creates a database in the docker container
+create-docker-db:
+    {{ docker }} exec -i '{{ docker_container }}' createdb -U '{{ db_user }}' '{{ db_name }}'
+
 
 # Restores the docker DB from a dump file
 restore-docker-db dump_file:
     #!/usr/bin/env bash
-    set -euo pipefail
-    
-    # {{ docker }} exec -i '{{ docker_container }}' createdb -U '{{ db_user }}' '{{ db_name }}'
+    set -euo pipefail        
     {{ docker }} exec -i '{{ docker_container }}' pg_restore -U '{{ db_user }}' -d '{{ db_name }}' --no-owner < '{{ dump_file }}'
     echo 'Wrote {{ dump_file }} to database'

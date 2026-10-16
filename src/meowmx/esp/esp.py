@@ -1,6 +1,6 @@
 import textwrap
 import typing as t
-from sqlalchemy import Engine, text, bindparam, Integer, Text, String
+from sqlalchemy import BindParameter, Engine, text, bindparam, Integer, Text, String
 from . import migrations
 from .. import common
 
@@ -224,25 +224,34 @@ class Esp:
         from_id: t.Optional[str],
         limit: int,
     ) -> common.ListAggregateInfoResult:
+        from_id_clause = "" if from_id is None else " AND  a.id >= :from_id "
         query = textwrap.dedent(
-            """
+            f"""
             SELECT
                 id, version, aggregate_type
             FROM es_aggregates a
             WHERE (:aggregate_type IS NULL OR a.aggregate_type = :aggregate_type)
-            AND  (:from_id IS NULL OR a.id >= :from_id)
+            {from_id_clause}
             ORDER BY id
             LIMIT :limit
             """
         )
 
+        bp: t.List[BindParameter] = [
+            bindparam("aggregate_type", type_=String),
+            bindparam("limit", type_=Integer),
+        ]
+        kwvals = {
+            "aggregate_type": aggregate_type,
+            "limit": limit + 1,
+        }
+        if from_id is not None:
+            bp.append(bindparam("from_id"))
+            kwvals["from_id"] = from_id
+
         result = session.execute(
-            text(query).bindparams(
-                bindparam("aggregate_type", type_=String),
-                bindparam("from_id", type_=String),
-                bindparam("limit", type_=Integer),
-            ),
-            {"aggregate_type": aggregate_type, "from_id": from_id, "limit": limit + 1},
+            text(query).bindparams(*bp),
+            kwvals,
         )
         rows = result.fetchall()
         if rows is None:
