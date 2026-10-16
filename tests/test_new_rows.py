@@ -236,7 +236,7 @@ def test_write_oranges(
             break
 
     # make sure we find none of them
-    for aggregate_id in expected_agg_info.keys():
+    for aggregate_id, expected_version in expected_agg_info.items():
         with pytest.raises(RuntimeError) as exc:
             meow.load_aggregate(OrangeAggregate, aggregate_id)
 

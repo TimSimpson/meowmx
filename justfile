@@ -62,6 +62,7 @@ usql:
     PAGER=cat usql 'postgres://{{ db_user }}:{{ db_password }}@localhost:5445/{{ db_name }}'
 
 
+# Backs up the docker DB to a dump file
 dump-docker-db:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -70,6 +71,8 @@ dump-docker-db:
     {{ docker }} exec '{{ docker_container }}' pg_dump -U '{{ db_user }}' -d '{{ db_name }}' -Fc > "${dump_file}"
     echo "Wrote to ${dump_file}."
 
+
+# Restores the docker DB from a dump file
 restore-docker-db dump_file:
     #!/usr/bin/env bash
     set -euo pipefail
