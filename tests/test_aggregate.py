@@ -53,7 +53,6 @@ class Aggregate:
 def test_save_load_aggregate(
     meow: meowmx.Client,
     new_uuid: t.Callable[[], str],
-    monkeypatch: t.Any,
 ) -> None:
     meow._default_chunk_size = 1
 
@@ -140,7 +139,6 @@ def test_save_load_aggregate_with_session(
 
 
 def test_save_load_large_aggregate(
-    monkeypatch: pytest.MonkeyPatch,
     session_maker: meowmx.SessionMaker,
     meow: meowmx.Client,
     new_uuid: t.Callable[[], str],
