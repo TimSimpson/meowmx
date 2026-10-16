@@ -76,6 +76,13 @@ def main() -> None:
             break
 
     print(f"Deleted {count} aggregate(s).")
+    if next_id is not None:
+        print(
+            "Aggregates matching this query still remain on the db."
+            f" The next one found has id {next_id}"
+        )
+    else:
+        print("No other aggregates matching this query were found.")
 
 
 if __name__ == "__main__":
